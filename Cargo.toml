@@ -1,0 +1,14 @@
+[package]
+name = "local-fqdn-filter"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = { version = "1.0.83", features = ["backtrace"] }
+clap = { version = "4.5.4", features = ["derive"] }
+toml = "0.8.12"
+serde = { version = "1.0.201", features = ["derive"] }
+
+[[bin]]
+name = "local-fqdn-filter"
+path = "src/bin/lff.rs"
