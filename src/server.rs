@@ -3,6 +3,7 @@ use crate::resolve_event::{DefaultResolveEvent, ResolveEvent};
 use crate::resolved_status::ResolvedStatus;
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::fmt::Display;
 use std::net::{IpAddr, Ipv4Addr, UdpSocket};
 use std::sync::{Arc, RwLock};
 
@@ -30,6 +31,16 @@ impl Default for Config {
             port: 53,
             default_dns_server: Ipv4Addr::new(8, 8, 8, 8),
         }
+    }
+}
+
+impl Display for Config {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Address: {}, Port: {}, Default DNS Server: {}",
+            self.address, self.port, self.default_dns_server
+        )
     }
 }
 

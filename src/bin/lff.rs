@@ -2,12 +2,10 @@ use anyhow::Result;
 use clap::Parser;
 use local_fqdn_filter::Server;
 use serde::Deserialize;
-use std::{
-    collections::HashMap,
-    fs::File,
-    io::{BufRead, BufReader},
-    path::{Path, PathBuf},
-};
+use std::collections::HashMap;
+use std::fs::File;
+use std::io::{BufRead, BufReader};
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Parser)]
 struct Cli {
@@ -52,14 +50,12 @@ fn get_config(cli: &Cli) -> Result<Config> {
 
 fn get_allowlist(config: &Config) -> Result<HashMap<String, ()>> {
     let allowlist = if let Some(path) = config.allowlist.as_ref() {
-        println!("[Config] Loading AllowList ({})", path.display());
         let mut allowlist = HashMap::new();
         for line in BufReader::new(File::open(path)?).lines() {
             allowlist.insert(line?, ());
         }
         allowlist
     } else {
-        println!("[Config] No AllowList");
         HashMap::new()
     };
 
@@ -69,7 +65,14 @@ fn get_allowlist(config: &Config) -> Result<HashMap<String, ()>> {
 fn main() -> Result<()> {
     let cli = Cli::parse();
     let config = get_config(&cli)?;
+    println!("[Config] Server: {}", config.server);
+    if let Some(allowlist_path) = config.allowlist.as_ref() {
+        println!("[Config] AllowList: {}", allowlist_path.display());
+    } else {
+        println!("[Config] AllowList: None");
+    }
     let allowlist = get_allowlist(&config)?;
+    println!("[Config] Allowing {} FQDN(s)", allowlist.len());
 
     println!("Start Local FQDN Filter");
     Server::from_config(config.server)
