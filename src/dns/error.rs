@@ -2,29 +2,15 @@ use std::io;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Debug)]
+/// Define an enumeration for the various errors that can occur in this library
+#[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("End of buffer")]
     EndOfBuffer,
+    #[error("Limit of {0} jumps exceeded")]
     JumpLimit(usize),
+    #[error("Single label exceeds 63 characters of length")]
     SingleLabelLimit,
-    Io(io::Error),
+    #[error("{0}")]
+    Io(#[from] io::Error),
 }
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::EndOfBuffer => write!(f, "End of buffer"),
-            Self::JumpLimit(v) => write!(f, "Limit of {} jumps exceeded", v),
-            Self::SingleLabelLimit => write!(f, "Single label exceeds 63 characters of length"),
-            Self::Io(e) => e.fmt(f),
-        }
-    }
-}
-
-impl From<io::Error> for Error {
-    fn from(value: io::Error) -> Self {
-        Error::Io(value)
-    }
-}
-
-impl std::error::Error for Error {}
