@@ -26,8 +26,13 @@ The application reads configuration settings from a `local-fqdn-filter.toml` fil
 
 The `config.toml` file should have the following structure:
 ```toml
-# Path to the allowlist file containing allowed FQDNs, one per line
+[general]
+# Path to the allowlist file containing allowed FQDNs, one per line (Option)
 allowlist = "allowlist.txt"
+# Log level: options are "trace", "debug", "info", "warn", "error" (Option)
+loglevel = "info"
+# Directory where log files will be stored (Option)
+log_dir = "/path/to/log/directory"
 
 [server]
 # The address the application will bind to
