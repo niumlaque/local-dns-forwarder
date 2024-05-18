@@ -5,18 +5,15 @@ use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::{filter, fmt, reload};
 use tracing_subscriber::{prelude::*, Registry};
 
+pub type ReloadHandle = reload::Handle<LevelFilter, Registry>;
+
 pub struct LogContext {
-    #[allow(dead_code)]
-    reload_handle: reload::Handle<LevelFilter, Registry>,
-    #[allow(dead_code)]
-    file_guard: Option<non_blocking::WorkerGuard>,
+    pub reload_handle: ReloadHandle,
+    pub file_guard: Option<non_blocking::WorkerGuard>,
 }
 
 impl LogContext {
-    fn new(
-        reload_handle: reload::Handle<LevelFilter, Registry>,
-        file_guard: Option<non_blocking::WorkerGuard>,
-    ) -> Self {
+    fn new(reload_handle: ReloadHandle, file_guard: Option<non_blocking::WorkerGuard>) -> Self {
         Self {
             reload_handle,
             file_guard,

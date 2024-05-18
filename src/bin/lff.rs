@@ -1,6 +1,7 @@
 use anyhow::Result;
 use clap::Parser;
-use local_fqdn_filter::{logger, Server, TracingResolveEvent};
+use local_fqdn_filter::logger::{self, LogContext};
+use local_fqdn_filter::{Server, TracingResolveEvent};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs::File;
@@ -130,7 +131,70 @@ fn absolute_path(path: impl AsRef<Path>) -> Result<PathBuf> {
     Ok(ret)
 }
 
-fn main() -> Result<()> {
+fn on_ipctl(command: &str, reload_handle: &logger::ReloadHandle) -> String {
+    use std::str::FromStr;
+    let inv = || {
+        let msg = format!("Invalid command: {command}");
+        tracing::error!("{msg}");
+        msg
+    };
+
+    let splitted = command.split(' ').collect::<Vec<_>>();
+    if splitted.is_empty() {
+        return inv();
+    }
+
+    match splitted[0].to_lowercase().as_ref() {
+        "log" => {
+            if splitted.len() < 2 {
+                return inv();
+            }
+
+            if let Ok(level) = tracing::Level::from_str(splitted[1]) {
+                match reload_handle.modify(|y| *y = level.into()) {
+                    Ok(_) => {
+                        let msg = format!("Log level is changed to {level}");
+                        tracing::info!("{msg}");
+                        msg
+                    }
+                    Err(e) => {
+                        let msg = format!("Failed to change log lebel to {level}");
+                        tracing::error!("{msg} ({e})");
+                        msg
+                    }
+                }
+            } else {
+                let msg = format!("Failed to convert {} to log level", splitted[1]);
+                tracing::error!("{msg}");
+                msg
+            }
+        }
+        "allow" => {
+            if splitted.len() < 2 {
+                return inv();
+            }
+
+            // TODO:
+            let msg = format!("Add {} to AllowList", splitted[1]);
+            tracing::info!("{msg}");
+            msg
+        }
+        "deny" => {
+            if splitted.len() < 2 {
+                return inv();
+            }
+
+            // TODO:
+            let msg = format!("Remove {} from AllowList", splitted[1]);
+            tracing::info!("{msg}");
+            msg
+        }
+        _ => inv(),
+    }
+}
+
+#[tokio::main]
+async fn main() -> Result<()> {
     let cli = Cli::parse();
     let config_path = get_config_path(&cli)?;
     println!("[Config] Config path: {}", config_path.display());
@@ -142,7 +206,7 @@ fn main() -> Result<()> {
         Config::default()
     };
     let config = InnerConfig::new(config)?;
-    let _log = logger::init(config.loglevel, config.log_dir.as_ref());
+    let log = logger::init(config.loglevel, config.log_dir.as_ref());
     println!("[Config] Log Level: {}", config.loglevel);
 
     tracing::info!("[Config] Server: {}", config.server);
@@ -154,6 +218,17 @@ fn main() -> Result<()> {
     let allowlist = get_allowlist(&config)?;
     tracing::info!("[Config] Allowing {} FQDN(s)", allowlist.len());
 
+    let LogContext {
+        reload_handle,
+        file_guard: _file_guard,
+    } = log;
+
+    let addr = "127.0.0.1:60001"
+        .parse()
+        .expect("Failed to parse endpoint for ipctl Server");
+    let handler =
+        ipctl::Server::new(move |x: &str| on_ipctl(x, &reload_handle)).spawn_and_serve(addr);
+
     tracing::info!("Start Local FQDN Filter");
     Server::from_config(config.server)
         .allowlist(allowlist)
@@ -161,5 +236,6 @@ fn main() -> Result<()> {
         .build()
         .serve()?;
 
+    handler.join().await?;
     Ok(())
 }
