@@ -135,6 +135,7 @@ impl<E: ResolveEvent> Runner<E> {
         resp.header.response = true;
 
         if let Some(question) = req.questions.pop() {
+            let qtype = question.qtype;
             let name = question.name.clone();
             let status = if self.check_allowlist(&question.name) {
                 let dns_server = if let Ok(dds) = self.default_dns_server.read() {
@@ -164,17 +165,17 @@ impl<E: ResolveEvent> Runner<E> {
                     }
 
                     if result.header.rescode == dns::ResultCode::NoError {
-                        ResolvedStatus::Allow(name.clone(), addresses)
+                        ResolvedStatus::Allow(qtype, name.clone(), addresses)
                     } else {
-                        ResolvedStatus::AllowButError(name.clone(), result.header.rescode)
+                        ResolvedStatus::AllowButError(qtype, name.clone(), result.header.rescode)
                     }
                 } else {
                     resp.header.rescode = dns::ResultCode::ServFail;
-                    ResolvedStatus::AllowButError(name.clone(), resp.header.rescode)
+                    ResolvedStatus::AllowButError(qtype, name.clone(), resp.header.rescode)
                 }
             } else {
                 resp.header.rescode = dns::ResultCode::Refused;
-                ResolvedStatus::Deny(name.clone(), resp.header.rescode)
+                ResolvedStatus::Deny(qtype, name.clone(), resp.header.rescode)
             };
             self.event.resolved(status);
         } else {

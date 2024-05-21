@@ -15,15 +15,17 @@ impl ResolveEvent for DefaultResolveEvent {
 
     fn resolved(&self, status: ResolvedStatus) {
         match status {
-            ResolvedStatus::Allow(name, v) => println!(
-                "[Allow] {name}: {}",
+            ResolvedStatus::Allow(qtype, name, v) => println!(
+                "[Allow] <{qtype}> {name}: {}",
                 v.iter()
                     .map(|x| x.to_string())
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
-            ResolvedStatus::AllowButError(name, code) => println!("[Allow] {name}: {code}"),
-            ResolvedStatus::Deny(name, code) => println!("[Deny] {name}: {code}"),
+            ResolvedStatus::AllowButError(qtype, name, code) => {
+                println!("[Allow] <{qtype}> {name}: {code}")
+            }
+            ResolvedStatus::Deny(qtype, name, code) => println!("[Deny] <{qtype}> {name}: {code}"),
         }
     }
 
@@ -40,15 +42,19 @@ impl ResolveEvent for TracingResolveEvent {
 
     fn resolved(&self, status: ResolvedStatus) {
         match status {
-            ResolvedStatus::Allow(name, v) => tracing::info!(
-                "[Allow] {name}: {}",
+            ResolvedStatus::Allow(qtype, name, v) => tracing::info!(
+                "[Allow] <{qtype}> {name}: {}",
                 v.iter()
                     .map(|x| x.to_string())
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
-            ResolvedStatus::AllowButError(name, code) => tracing::info!("[Allow] {name}: {code}"),
-            ResolvedStatus::Deny(name, code) => tracing::info!("[Deny] {name}: {code}"),
+            ResolvedStatus::AllowButError(qtype, name, code) => {
+                tracing::info!("[Allow] <{qtype}> {name}: {code}")
+            }
+            ResolvedStatus::Deny(qtype, name, code) => {
+                tracing::info!("[Deny] <{qtype}> {name}: {code}")
+            }
         }
     }
 

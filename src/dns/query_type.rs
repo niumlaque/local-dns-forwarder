@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 #[repr(u16)]
 #[derive(Debug, Clone, Copy)]
 pub enum QueryType {
@@ -26,6 +28,17 @@ impl From<u16> for QueryType {
             1 => QueryType::A,
             28 => QueryType::AAAA,
             _ => QueryType::UNKNOWN(value),
+        }
+    }
+}
+
+impl Display for QueryType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use QueryType::*;
+        match self {
+            A => write!(f, "A"),
+            AAAA => write!(f, "AAAA"),
+            UNKNOWN(v) => write!(f, "UNKNOWN({v})"),
         }
     }
 }
