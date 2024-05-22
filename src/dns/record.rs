@@ -27,6 +27,7 @@ use std::net::{Ipv4Addr, Ipv6Addr};
 pub struct Record {
     pub name: String,
     pub qtype: QueryType,
+    pub class: u16,
     pub ttl: u32,
     pub rdlength: u16,
     pub rdata: RData,
@@ -34,7 +35,7 @@ pub struct Record {
 
 #[derive(Debug)]
 pub enum RData {
-    Unknown,
+    Unknown(QueryType, Vec<u8>),
     A(Ipv4Addr),
     AAAA(Ipv6Addr),
 }
@@ -43,7 +44,7 @@ impl Record {
     pub fn read(buf: &mut BytePacketBuffer) -> super::error::Result<Self> {
         let name = buf.read_qname()?;
         let qtype = QueryType::from(buf.read_u16()?);
-        let _ = buf.read_u16()?;
+        let class = buf.read_u16()?;
         let ttl = buf.read_u32()?;
         let rdlen = buf.read_u16()?;
         let rdata = match qtype {
@@ -75,14 +76,15 @@ impl Record {
                 RData::AAAA(addr)
             }
             _ => {
-                buf.step(rdlen as usize)?;
-                RData::Unknown
+                let v = buf.read_range(rdlen as usize)?;
+                RData::Unknown(qtype, v.to_vec())
             }
         };
 
         Ok(Record {
             name,
             qtype,
+            class,
             ttl,
             rdlength: rdlen,
             rdata,
@@ -91,11 +93,11 @@ impl Record {
 
     pub fn write(&self, buf: &mut BytePacketBuffer) -> Result<usize> {
         let p = buf.pos();
-        match self.rdata {
+        match &self.rdata {
             RData::A(v) => {
                 buf.write_qname(&self.name)?;
                 buf.write_u16(QueryType::A.into())?;
-                buf.write_u16(1)?;
+                buf.write_u16(self.class)?;
                 buf.write_u32(self.ttl)?;
                 buf.write_u16(4)?;
                 let o = v.octets();
@@ -107,7 +109,7 @@ impl Record {
             RData::AAAA(v) => {
                 buf.write_qname(&self.name)?;
                 buf.write_u16(QueryType::AAAA.into())?;
-                buf.write_u16(1)?;
+                buf.write_u16(self.class)?;
                 buf.write_u32(self.ttl)?;
                 buf.write_u16(16)?;
 
@@ -115,7 +117,14 @@ impl Record {
                     buf.write_u16(*octet)?;
                 }
             }
-            _ => (),
+            RData::Unknown(qtype, v) => {
+                buf.write_qname(&self.name)?;
+                buf.write_u16((*qtype).into())?;
+                buf.write_u16(self.class)?;
+                buf.write_u32(self.ttl)?;
+                buf.write_u16(v.len() as u16)?;
+                buf.write_range(v)?;
+            }
         }
         Ok(buf.pos() - p)
     }

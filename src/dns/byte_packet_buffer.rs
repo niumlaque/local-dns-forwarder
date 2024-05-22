@@ -192,6 +192,16 @@ impl BytePacketBuffer {
 
         Ok(())
     }
+
+    pub fn write_range(&mut self, v: &[u8]) -> Result<()> {
+        let end = self.pos + v.len();
+        if end < BUF_SIZE {
+            self.buf[self.pos..end].copy_from_slice(v);
+            Ok(())
+        } else {
+            Err(Error::EndOfBuffer)
+        }
+    }
 }
 
 impl Default for BytePacketBuffer {

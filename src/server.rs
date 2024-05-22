@@ -1,6 +1,6 @@
 use crate::dns;
 use crate::resolve_event::{DefaultResolveEvent, ResolveEvent};
-use crate::resolved_status::ResolvedStatus;
+use crate::resolved_status::{ResolvedData, ResolvedStatus};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fmt::Display;
@@ -144,15 +144,17 @@ impl<E: ResolveEvent> Runner<E> {
                     self.config.default_dns_server
                 };
 
-                if let Ok(result) = dns::lookup(dns_server, &question.name, question.qtype) {
+                if let Ok(result) =
+                    dns::lookup(dns_server, &question.name, question.qtype, question.class)
+                {
                     resp.questions.push(question);
                     resp.header.rescode = result.header.rescode;
-                    let mut addresses = Vec::with_capacity(result.answers.len());
+                    let mut data = Vec::with_capacity(result.answers.len());
 
                     for rec in result.answers {
-                        match rec.rdata {
-                            dns::RData::A(v) => addresses.push(IpAddr::V4(v)),
-                            dns::RData::AAAA(v) => addresses.push(IpAddr::V6(v)),
+                        match &rec.rdata {
+                            dns::RData::A(v) => data.push(ResolvedData::IpAddr(IpAddr::V4(*v))),
+                            dns::RData::AAAA(v) => data.push(ResolvedData::IpAddr(IpAddr::V6(*v))),
                             _ => (),
                         }
                         resp.answers.push(rec);
@@ -165,7 +167,7 @@ impl<E: ResolveEvent> Runner<E> {
                     }
 
                     if result.header.rescode == dns::ResultCode::NoError {
-                        ResolvedStatus::Allow(qtype, name.clone(), addresses)
+                        ResolvedStatus::Allow(qtype, name.clone(), data)
                     } else {
                         ResolvedStatus::AllowButError(qtype, name.clone(), result.header.rescode)
                     }
