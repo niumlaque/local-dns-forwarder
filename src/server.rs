@@ -147,7 +147,8 @@ impl<E: ResolveEvent> Runner<E> {
                 };
                 self.event.resolved(status);
             } else {
-                self.lookup(req.header.id, question, &mut resp)?;
+                let status = self.lookup(req.header.id, question, &mut resp)?;
+                self.event.resolved(status.into_nocheck());
             }
         } else {
             resp.header.rescode = dns::ResultCode::FormErr;

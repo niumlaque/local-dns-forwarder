@@ -10,6 +10,10 @@ pub enum ResolvedStatus {
     Allow(ResolvedData),
     /// Indicates that the FQDN is listed in the allowlist but the name resolution failed
     AllowButError(ResolvedData, ResultCode),
+    /// Indicates that the name resolution was performed without checking the allowlist
+    NoCheck(ResolvedData),
+    /// Indicates that the name resolution failed without checking the allowlist
+    NoCheckButError(ResolvedData, ResultCode),
 }
 
 impl ResolvedStatus {
@@ -24,6 +28,22 @@ impl ResolvedStatus {
                 v.pretty_fmt(f)?;
                 Ok(())
             }
+            Self::NoCheck(v) => {
+                write!(f, "[NoCheck] ")?;
+                v.pretty_fmt(f)?;
+                Ok(())
+            }
+            Self::NoCheckButError(v, code) => {
+                write!(f, "[NoCheck] <{}> {}: {code}", v.req_qtype, v.req_name)
+            }
+        }
+    }
+
+    pub(super) fn into_nocheck(self) -> ResolvedStatus {
+        match self {
+            Self::Allow(v) => ResolvedStatus::NoCheck(v),
+            Self::AllowButError(v, code) => ResolvedStatus::NoCheckButError(v, code),
+            v => v,
         }
     }
 }
