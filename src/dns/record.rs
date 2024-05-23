@@ -133,7 +133,7 @@ impl Record {
             }
             RData::CNAME(len, name) => {
                 buf.write_qname(&self.name)?;
-                buf.write_u16(QueryType::AAAA.into())?;
+                buf.write_u16(QueryType::CNAME.into())?;
                 buf.write_u16(self.class)?;
                 buf.write_u32(self.ttl)?;
                 buf.write_u16(*len)?;
@@ -141,7 +141,7 @@ impl Record {
             }
             RData::SRV(len, v) => {
                 buf.write_qname(&self.name)?;
-                buf.write_u16(QueryType::AAAA.into())?;
+                buf.write_u16(QueryType::SRV.into())?;
                 buf.write_u16(self.class)?;
                 buf.write_u32(self.ttl)?;
                 buf.write_u16(*len)?;
