@@ -23,4 +23,25 @@ impl ResolvedData {
             .or_default()
             .push(resp_name.into());
     }
+
+    pub(crate) fn pretty_fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let dummy = Vec::new();
+        let target_a = self.resp.get(&QueryType::A).unwrap_or(&dummy);
+        let target_aaaa = self.resp.get(&QueryType::AAAA).unwrap_or(&dummy);
+        write!(f, "<{}> {} =>", self.req_qtype, self.req_name)?;
+        if !target_a.is_empty() {
+            write!(f, " {}({})", QueryType::A, target_a.join(", "))?;
+        }
+        if !target_aaaa.is_empty() {
+            write!(f, " {}({})", QueryType::AAAA, target_aaaa.join(", "))?;
+        }
+        for item in self
+            .resp
+            .iter()
+            .filter(|x| *x.0 != QueryType::A && *x.0 != QueryType::AAAA)
+        {
+            write!(f, " {}({})", item.0, item.1.len())?;
+        }
+        Ok(())
+    }
 }
