@@ -11,6 +11,9 @@ pub enum QueryType {
     AAAA = 28,
 
     CNAME = 5,
+
+    /// Service locator
+    SRV = 33,
 }
 
 impl From<QueryType> for u16 {
@@ -21,6 +24,7 @@ impl From<QueryType> for u16 {
             A => 1,
             AAAA => 28,
             CNAME => 5,
+            SRV => 33,
         }
     }
 }
@@ -31,6 +35,7 @@ impl From<u16> for QueryType {
             1 => QueryType::A,
             5 => QueryType::CNAME,
             28 => QueryType::AAAA,
+            33 => QueryType::SRV,
             _ => QueryType::UNKNOWN(value),
         }
     }
@@ -43,6 +48,7 @@ impl Display for QueryType {
             A => write!(f, "A"),
             AAAA => write!(f, "AAAA"),
             CNAME => write!(f, "CNAME"),
+            SRV => write!(f, "SRV"),
             UNKNOWN(v) => write!(f, "UNKNOWN({v})"),
         }
     }

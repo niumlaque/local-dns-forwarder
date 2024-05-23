@@ -1,5 +1,5 @@
 use crate::dns::QueryType;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 #[derive(Debug)]
 pub struct ResolvedData {
@@ -26,20 +26,32 @@ impl ResolvedData {
 
     pub(crate) fn pretty_fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let dummy = Vec::new();
-        let target_a = self.resp.get(&QueryType::A).unwrap_or(&dummy);
-        let target_aaaa = self.resp.get(&QueryType::AAAA).unwrap_or(&dummy);
+        let mut set = HashSet::new();
         write!(f, "<{}> {} =>", self.req_qtype, self.req_name)?;
-        if !target_a.is_empty() {
-            write!(f, " {}({})", QueryType::A, target_a.join(", "))?;
+
+        match self.req_qtype {
+            QueryType::A | QueryType::AAAA => {
+                let target_a = self.resp.get(&QueryType::A).unwrap_or(&dummy);
+                let target_aaaa = self.resp.get(&QueryType::AAAA).unwrap_or(&dummy);
+                if !target_a.is_empty() {
+                    write!(f, " {}({})", QueryType::A, target_a.join(", "))?;
+                    set.insert(QueryType::A);
+                }
+                if !target_aaaa.is_empty() {
+                    write!(f, " {}({})", QueryType::AAAA, target_aaaa.join(", "))?;
+                    set.insert(QueryType::AAAA);
+                }
+            }
+            QueryType::SRV => {
+                let target_srv = self.resp.get(&QueryType::SRV).unwrap_or(&dummy);
+                if !target_srv.is_empty() {
+                    write!(f, " {}({})", QueryType::SRV, target_srv.join(", "))?;
+                    set.insert(QueryType::SRV);
+                }
+            }
+            _ => (),
         }
-        if !target_aaaa.is_empty() {
-            write!(f, " {}({})", QueryType::AAAA, target_aaaa.join(", "))?;
-        }
-        for item in self
-            .resp
-            .iter()
-            .filter(|x| *x.0 != QueryType::A && *x.0 != QueryType::AAAA)
-        {
+        for item in self.resp.iter().filter(|x| !set.contains(x.0)) {
             write!(f, " {}({})", item.0, item.1.len())?;
         }
         Ok(())

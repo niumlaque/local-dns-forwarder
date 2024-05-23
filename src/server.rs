@@ -205,6 +205,7 @@ impl<E: ResolveEvent> Runner<E> {
                     dns::RData::A(v) => res_data.insert(dns::QueryType::A, v.to_string()),
                     dns::RData::AAAA(v) => res_data.insert(dns::QueryType::AAAA, v.to_string()),
                     dns::RData::CNAME(_, v) => res_data.insert(dns::QueryType::CNAME, v),
+                    dns::RData::SRV(_, v) => res_data.insert(dns::QueryType::SRV, v.to_string()),
                     dns::RData::Unknown(qtype, _) => {
                         res_data.insert(dns::QueryType::UNKNOWN((*qtype).into()), "".to_string())
                     }

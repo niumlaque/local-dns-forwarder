@@ -1,6 +1,7 @@
 use super::byte_packet_buffer::BytePacketBuffer;
 use super::error::Result;
 use super::query_type::QueryType;
+use std::fmt;
 use std::net::{Ipv4Addr, Ipv6Addr};
 
 ///                               1  1  1  1  1  1
@@ -39,6 +40,7 @@ pub enum RData {
     A(Ipv4Addr),
     AAAA(Ipv6Addr),
     CNAME(u16, String),
+    SRV(u16, SrvRecord),
 }
 
 impl Record {
@@ -79,6 +81,13 @@ impl Record {
             QueryType::CNAME => {
                 let name = buf.read_qname()?;
                 RData::CNAME(rdlen, name)
+            }
+            QueryType::SRV => {
+                let priority = buf.read_u16()?;
+                let weight = buf.read_u16()?;
+                let port = buf.read_u16()?;
+                let target = buf.read_qname()?;
+                RData::SRV(rdlen, SrvRecord::new(priority, weight, port, target))
             }
             _ => {
                 let v = buf.read_range(rdlen as usize)?;
@@ -130,6 +139,17 @@ impl Record {
                 buf.write_u16(*len)?;
                 buf.write_qname(name)?;
             }
+            RData::SRV(len, v) => {
+                buf.write_qname(&self.name)?;
+                buf.write_u16(QueryType::AAAA.into())?;
+                buf.write_u16(self.class)?;
+                buf.write_u32(self.ttl)?;
+                buf.write_u16(*len)?;
+                buf.write_u16(v.priority)?;
+                buf.write_u16(v.weight)?;
+                buf.write_u16(v.port)?;
+                buf.write_qname(&v.target)?;
+            }
             RData::Unknown(qtype, v) => {
                 buf.write_qname(&self.name)?;
                 buf.write_u16((*qtype).into())?;
@@ -140,5 +160,34 @@ impl Record {
             }
         }
         Ok(buf.pos() - p)
+    }
+}
+
+#[derive(Debug)]
+pub struct SrvRecord {
+    pub priority: u16,
+    pub weight: u16,
+    pub port: u16,
+    pub target: String,
+}
+
+impl SrvRecord {
+    fn new(priority: u16, weight: u16, port: u16, target: impl Into<String>) -> Self {
+        Self {
+            priority,
+            weight,
+            port,
+            target: target.into(),
+        }
+    }
+}
+
+impl fmt::Display for SrvRecord {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{} {} {} {}",
+            self.priority, self.weight, self.port, self.target
+        )
     }
 }
