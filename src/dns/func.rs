@@ -8,6 +8,7 @@ use super::Result;
 
 pub fn lookup(
     dns_server: Ipv4Addr,
+    id: u16,
     name: impl Into<String>,
     qtype: QueryType,
     class: u16,
@@ -15,7 +16,7 @@ pub fn lookup(
     let server = (dns_server, 53);
     let socket = UdpSocket::bind(("0.0.0.0", 43210))?;
     let mut msg = Message::new();
-    msg.header.id = 6666;
+    msg.header.id = id;
     msg.header.questions = 1;
     msg.header.recursion_desired = true;
     msg.questions.push(Question::new(name.into(), qtype, class));
