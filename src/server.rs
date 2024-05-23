@@ -1,10 +1,10 @@
 use crate::dns;
 use crate::resolve_event::{DefaultResolveEvent, ResolveEvent};
-use crate::resolved_status::{ResolvedData, ResolvedStatus};
+use crate::resolved_status::ResolvedStatus;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fmt::Display;
-use std::net::{IpAddr, Ipv4Addr, UdpSocket};
+use std::net::{Ipv4Addr, UdpSocket};
 use std::sync::{Arc, RwLock};
 
 #[derive(Debug, Clone, Deserialize)]
@@ -137,6 +137,7 @@ impl<E: ResolveEvent> Runner<E> {
         if let Some(question) = req.questions.pop() {
             let qtype = question.qtype;
             let name = question.name.clone();
+            let mut res_data = crate::resolved_data::ResolvedData::new(qtype, name);
             let status = if self.check_allowlist(&question.name) {
                 let dns_server = if let Ok(dds) = self.default_dns_server.read() {
                     *dds
@@ -149,13 +150,16 @@ impl<E: ResolveEvent> Runner<E> {
                 {
                     resp.questions.push(question);
                     resp.header.rescode = result.header.rescode;
-                    let mut data = Vec::with_capacity(result.answers.len());
 
                     for rec in result.answers {
                         match &rec.rdata {
-                            dns::RData::A(v) => data.push(ResolvedData::IpAddr(IpAddr::V4(*v))),
-                            dns::RData::AAAA(v) => data.push(ResolvedData::IpAddr(IpAddr::V6(*v))),
-                            _ => (),
+                            dns::RData::A(v) => res_data.insert(dns::QueryType::A, v.to_string()),
+                            dns::RData::AAAA(v) => {
+                                res_data.insert(dns::QueryType::AAAA, v.to_string())
+                            }
+                            dns::RData::CNAME(_, v) => res_data.insert(dns::QueryType::CNAME, v),
+                            dns::RData::Unknown(qtype, _) => res_data
+                                .insert(dns::QueryType::UNKNOWN((*qtype).into()), "".to_string()),
                         }
                         resp.answers.push(rec);
                     }
@@ -167,17 +171,17 @@ impl<E: ResolveEvent> Runner<E> {
                     }
 
                     if result.header.rescode == dns::ResultCode::NoError {
-                        ResolvedStatus::Allow(qtype, name.clone(), data)
+                        ResolvedStatus::Allow(res_data)
                     } else {
-                        ResolvedStatus::AllowButError(qtype, name.clone(), result.header.rescode)
+                        ResolvedStatus::AllowButError(res_data, result.header.rescode)
                     }
                 } else {
                     resp.header.rescode = dns::ResultCode::ServFail;
-                    ResolvedStatus::AllowButError(qtype, name.clone(), resp.header.rescode)
+                    ResolvedStatus::AllowButError(res_data, resp.header.rescode)
                 }
             } else {
                 resp.header.rescode = dns::ResultCode::Refused;
-                ResolvedStatus::Deny(qtype, name.clone(), resp.header.rescode)
+                ResolvedStatus::Deny(res_data, resp.header.rescode)
             };
             self.event.resolved(status);
         } else {

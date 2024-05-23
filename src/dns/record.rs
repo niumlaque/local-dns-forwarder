@@ -38,6 +38,7 @@ pub enum RData {
     Unknown(QueryType, Vec<u8>),
     A(Ipv4Addr),
     AAAA(Ipv6Addr),
+    CNAME(u16, String),
 }
 
 impl Record {
@@ -74,6 +75,10 @@ impl Record {
                     (addr4 & 0xFFFF) as u16,
                 );
                 RData::AAAA(addr)
+            }
+            QueryType::CNAME => {
+                let name = buf.read_qname()?;
+                RData::CNAME(rdlen, name)
             }
             _ => {
                 let v = buf.read_range(rdlen as usize)?;
@@ -116,6 +121,14 @@ impl Record {
                 for octet in &v.segments() {
                     buf.write_u16(*octet)?;
                 }
+            }
+            RData::CNAME(len, name) => {
+                buf.write_qname(&self.name)?;
+                buf.write_u16(QueryType::AAAA.into())?;
+                buf.write_u16(self.class)?;
+                buf.write_u32(self.ttl)?;
+                buf.write_u16(*len)?;
+                buf.write_qname(name)?;
             }
             RData::Unknown(qtype, v) => {
                 buf.write_qname(&self.name)?;
