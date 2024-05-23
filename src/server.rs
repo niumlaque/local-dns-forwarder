@@ -110,7 +110,7 @@ pub struct Runner<E: ResolveEvent> {
     config: Config,
     default_dns_server: Arc<RwLock<Ipv4Addr>>,
     event: E,
-    allowlist: Arc<RwLock<HashMap<String, ()>>>,
+    pub allowlist: Arc<RwLock<HashMap<String, ()>>>,
 }
 
 impl<E: ResolveEvent> Runner<E> {

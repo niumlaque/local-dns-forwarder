@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, RwLock};
 
 #[derive(Debug, Parser)]
 struct Cli {
@@ -131,7 +132,11 @@ fn absolute_path(path: impl AsRef<Path>) -> Result<PathBuf> {
     Ok(ret)
 }
 
-fn on_ipctl(command: &str, reload_handle: &logger::ReloadHandle) -> String {
+fn on_ipctl(
+    command: &str,
+    reload_handle: &logger::ReloadHandle,
+    allowlist: Arc<RwLock<HashMap<String, ()>>>,
+) -> String {
     use std::str::FromStr;
     let inv = || {
         let msg = format!("Invalid command: {command}");
@@ -174,9 +179,23 @@ fn on_ipctl(command: &str, reload_handle: &logger::ReloadHandle) -> String {
                 return inv();
             }
 
-            // TODO:
-            let msg = format!("Add {} to AllowList", splitted[1]);
-            tracing::info!("{msg}");
+            let fqdn = splitted[1];
+            let msg = if let Ok(mut allowlist) = allowlist.write() {
+                let msg = if !allowlist.contains_key(fqdn) {
+                    allowlist.insert(fqdn.into(), ());
+                    format!("Add {fqdn} to AllowList")
+                } else {
+                    format!("{fqdn} is already in AllowList")
+                };
+
+                tracing::info!("{msg}");
+                msg
+            } else {
+                let msg = format!("Failed to add {fqdn} to AllowList");
+                tracing::error!("{msg}");
+                msg
+            };
+
             msg
         }
         "deny" => {
@@ -184,9 +203,23 @@ fn on_ipctl(command: &str, reload_handle: &logger::ReloadHandle) -> String {
                 return inv();
             }
 
-            // TODO:
-            let msg = format!("Remove {} from AllowList", splitted[1]);
-            tracing::info!("{msg}");
+            let fqdn = splitted[1];
+            let msg = if let Ok(mut allowlist) = allowlist.write() {
+                let msg = if allowlist.contains_key(fqdn) {
+                    allowlist.remove(fqdn);
+                    format!("Remove {fqdn} from AllowList")
+                } else {
+                    format!("{fqdn} is not in AllowList")
+                };
+
+                tracing::info!("{msg}");
+                msg
+            } else {
+                let msg = format!("Failed to add {fqdn} to AllowList");
+                tracing::error!("{msg}");
+                msg
+            };
+
             msg
         }
         _ => inv(),
@@ -226,15 +259,18 @@ async fn main() -> Result<()> {
     let addr = "127.0.0.1:60001"
         .parse()
         .expect("Failed to parse endpoint for ipctl Server");
-    let handler =
-        ipctl::Server::new(move |x: &str| on_ipctl(x, &reload_handle)).spawn_and_serve(addr);
 
     tracing::info!("Start Local FQDN Filter");
-    Server::from_config(config.server)
+    let server = Server::from_config(config.server)
         .allowlist(allowlist)
         .event(TracingResolveEvent)
-        .build()
-        .serve()?;
+        .build();
+
+    let allowlist = Arc::clone(&server.allowlist);
+    let handler =
+        ipctl::Server::new(move |x: &str| on_ipctl(x, &reload_handle, Arc::clone(&allowlist)))
+            .spawn_and_serve(addr);
+    server.serve()?;
 
     handler.join().await?;
     Ok(())
