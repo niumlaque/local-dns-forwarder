@@ -1,8 +1,8 @@
 use crate::dns;
 use crate::resolve_event::{DefaultResolveEvent, ResolveEvent};
 use crate::resolved_status::ResolvedStatus;
+use crate::AllowList;
 use serde::Deserialize;
-use std::collections::HashMap;
 use std::fmt::Display;
 use std::net::{Ipv4Addr, UdpSocket};
 use std::sync::{Arc, RwLock};
@@ -46,7 +46,7 @@ impl Display for Config {
 
 pub struct ServerBuilder<E: ResolveEvent> {
     config: Config,
-    allowlist: HashMap<String, ()>,
+    allowlist: AllowList,
     event: E,
 }
 
@@ -61,7 +61,7 @@ impl<E: ResolveEvent> ServerBuilder<E> {
         }
     }
 
-    pub fn allowlist(self, allowlist: HashMap<String, ()>) -> Self {
+    pub fn allowlist(self, allowlist: AllowList) -> Self {
         Self {
             config: self.config,
             allowlist,
@@ -72,7 +72,7 @@ impl<E: ResolveEvent> ServerBuilder<E> {
 
 pub struct ServerConfigBuilder {
     config: Config,
-    allowlist: HashMap<String, ()>,
+    allowlist: AllowList,
 }
 
 impl ServerConfigBuilder {
@@ -84,7 +84,7 @@ impl ServerConfigBuilder {
         }
     }
 
-    pub fn allowlist(self, allowlist: HashMap<String, ()>) -> Self {
+    pub fn allowlist(self, allowlist: AllowList) -> Self {
         Self {
             config: self.config,
             allowlist,
@@ -101,7 +101,7 @@ impl Server {
     pub fn from_config(config: Config) -> ServerConfigBuilder {
         ServerConfigBuilder {
             config,
-            allowlist: HashMap::new(),
+            allowlist: Default::default(),
         }
     }
 }
@@ -110,7 +110,7 @@ pub struct Runner<E: ResolveEvent> {
     config: Config,
     default_dns_server: Arc<RwLock<Ipv4Addr>>,
     event: E,
-    pub allowlist: Arc<RwLock<HashMap<String, ()>>>,
+    pub allowlist: Arc<RwLock<AllowList>>,
 }
 
 impl<E: ResolveEvent> Runner<E> {
@@ -167,7 +167,7 @@ impl<E: ResolveEvent> Runner<E> {
 
     fn check_allowlist(&self, name: &str) -> bool {
         if let Ok(allowlist) = self.allowlist.read() {
-            allowlist.contains_key(name)
+            allowlist.check(name)
         } else {
             self.event
                 .error("Failed to get allow list(read lock error)");

@@ -1,11 +1,8 @@
 use anyhow::Result;
 use clap::Parser;
 use local_fqdn_filter::logger::{self, LogContext};
-use local_fqdn_filter::{Server, TracingResolveEvent};
+use local_fqdn_filter::{AllowList, Server, TracingResolveEvent};
 use serde::Deserialize;
-use std::collections::HashMap;
-use std::fs::File;
-use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
@@ -107,15 +104,11 @@ fn get_config_path(cli: &Cli) -> Result<PathBuf> {
     }
 }
 
-fn get_allowlist(config: &InnerConfig) -> Result<HashMap<String, ()>> {
+fn get_allowlist(config: &InnerConfig) -> Result<AllowList> {
     let allowlist = if let Some(path) = config.allowlist.as_ref() {
-        let mut allowlist = HashMap::new();
-        for line in BufReader::new(File::open(path)?).lines() {
-            allowlist.insert(line?, ());
-        }
-        allowlist
+        AllowList::text(path.to_path_buf())?
     } else {
-        HashMap::new()
+        AllowList::in_memory()
     };
 
     Ok(allowlist)
@@ -135,7 +128,7 @@ fn absolute_path(path: impl AsRef<Path>) -> Result<PathBuf> {
 fn on_ipctl(
     command: &str,
     reload_handle: &logger::ReloadHandle,
-    allowlist: Arc<RwLock<HashMap<String, ()>>>,
+    allowlist: Arc<RwLock<AllowList>>,
 ) -> String {
     use std::str::FromStr;
     let inv = || {
@@ -181,8 +174,7 @@ fn on_ipctl(
 
             let fqdn = splitted[1];
             let msg = if let Ok(mut allowlist) = allowlist.write() {
-                let msg = if !allowlist.contains_key(fqdn) {
-                    allowlist.insert(fqdn.into(), ());
+                let msg = if allowlist.add(fqdn) > 0 {
                     format!("Add {fqdn} to AllowList")
                 } else {
                     format!("{fqdn} is already in AllowList")
@@ -205,8 +197,7 @@ fn on_ipctl(
 
             let fqdn = splitted[1];
             let msg = if let Ok(mut allowlist) = allowlist.write() {
-                let msg = if allowlist.contains_key(fqdn) {
-                    allowlist.remove(fqdn);
+                let msg = if allowlist.delete(fqdn) > 0 {
                     format!("Remove {fqdn} from AllowList")
                 } else {
                     format!("{fqdn} is not in AllowList")
@@ -249,7 +240,7 @@ async fn main() -> Result<()> {
         tracing::info!("[Config] AllowList: None");
     }
     let allowlist = get_allowlist(&config)?;
-    tracing::info!("[Config] Allowing {} FQDN(s)", allowlist.len());
+    tracing::info!("[Config] Allowing {} FQDN(s)", allowlist.count());
 
     let LogContext {
         reload_handle,
