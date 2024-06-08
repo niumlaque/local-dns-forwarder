@@ -9,4 +9,6 @@ pub enum Error {
     DNS(#[from] dns::Error),
     #[error("{0}")]
     Io(#[from] io::Error),
+    #[error("In-memory mode")]
+    SaveButInMemory,
 }

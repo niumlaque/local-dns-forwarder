@@ -1,7 +1,7 @@
-use crate::Result;
+use crate::{Error, Result};
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::PathBuf;
 
 #[derive(Debug)]
@@ -36,6 +36,10 @@ impl AllowList {
 
     pub fn count(&self) -> usize {
         self.inner.count()
+    }
+
+    pub fn save(&self) -> Result<()> {
+        self.inner.save()
     }
 }
 
@@ -95,5 +99,21 @@ impl InMemoryAllowList {
 
     pub fn count(&self) -> usize {
         self.names.len()
+    }
+
+    pub fn save(&self) -> Result<()> {
+        if let Some(path) = self.path.as_ref() {
+            let mut names = self.names.keys().collect::<Vec<_>>();
+            names.sort();
+            let f = File::create(path)?;
+            let mut w = BufWriter::new(f);
+            for name in names {
+                writeln!(w, "{}", name)?;
+            }
+            w.flush()?;
+            Ok(())
+        } else {
+            Err(Error::SaveButInMemory)
+        }
     }
 }

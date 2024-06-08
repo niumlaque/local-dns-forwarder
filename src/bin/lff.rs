@@ -213,6 +213,27 @@ fn on_ipctl(
 
             msg
         }
+        "save" => {
+            let msg = if let Ok(allowlist) = allowlist.read() {
+                match allowlist.save() {
+                    Ok(()) => {
+                        let msg = "AllowList is saved";
+                        tracing::info!("{msg}");
+                        msg.into()
+                    }
+                    Err(e) => {
+                        let msg = "Failed to save allowlist";
+                        tracing::error!("{msg}: {e}");
+                        msg.into()
+                    }
+                }
+            } else {
+                let msg = "Failed to save allowlist";
+                tracing::error!("{msg}: Could not get read lock");
+                msg.into()
+            };
+            msg
+        }
         _ => inv(),
     }
 }
