@@ -161,6 +161,23 @@ impl Record {
         }
         Ok(buf.pos() - p)
     }
+
+    pub fn debug_fmt(&self, f: &mut std::fmt::Formatter<'_>, indent: usize) -> std::fmt::Result {
+        let t = "\t".repeat(indent);
+        writeln!(f, "{t}name: {}", self.name)?;
+        writeln!(f, "{t}qtype: {}", self.qtype)?;
+        writeln!(f, "{t}class: {}", self.class)?;
+        writeln!(f, "{t}ttl: {}", self.ttl)?;
+        writeln!(f, "{t}rdlength: {}", self.rdlength)?;
+        match &self.rdata {
+            RData::A(v) => writeln!(f, "{t}{v}")?,
+            RData::AAAA(v) => writeln!(f, "{t}{v}")?,
+            RData::CNAME(_, v) => writeln!(f, "{t}{v}")?,
+            RData::SRV(_, v) => v.debug_fmt(f, indent)?,
+            RData::Unknown(_, v) => writeln!(f, "len: {}", v.len())?,
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug)]
@@ -179,6 +196,15 @@ impl SrvRecord {
             port,
             target: target.into(),
         }
+    }
+
+    pub fn debug_fmt(&self, f: &mut std::fmt::Formatter<'_>, indent: usize) -> std::fmt::Result {
+        let t = "\t".repeat(indent);
+        writeln!(f, "{t}priority: {}", self.priority)?;
+        writeln!(f, "{t}weight: {}", self.weight)?;
+        writeln!(f, "{t}port: {}", self.port)?;
+        writeln!(f, "{t}target: {}", self.target)?;
+        Ok(())
     }
 }
 

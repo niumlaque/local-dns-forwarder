@@ -35,7 +35,7 @@ use super::record::Record;
 /// authoritative name server; the additional records section contains RRs
 /// which relate to the query, but are not strictly answers for the
 /// question.
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct Message {
     pub header: Header,
     pub questions: Vec<Question>,
@@ -102,5 +102,37 @@ impl Message {
         }
 
         Ok(())
+    }
+
+    pub fn debug_fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "Header:")?;
+        self.header.debug_fmt(f, 1)?;
+        writeln!(f, "Questions({})", self.questions.len())?;
+        for (i, v) in self.questions.iter().enumerate() {
+            println!("\tQuestion[{i}]");
+            v.debug_fmt(f, 2)?;
+        }
+        writeln!(f, "Answers({})", self.answers.len())?;
+        for (i, v) in self.answers.iter().enumerate() {
+            println!("\tAnswer[{i}]");
+            v.debug_fmt(f, 2)?;
+        }
+        writeln!(f, "Authorities({})", self.authorities.len())?;
+        for (i, v) in self.authorities.iter().enumerate() {
+            println!("\tAuthority[{i}]");
+            v.debug_fmt(f, 2)?;
+        }
+        writeln!(f, "Resources({})", self.resources.len())?;
+        for (i, v) in self.resources.iter().enumerate() {
+            println!("\tResource[{i}]");
+            v.debug_fmt(f, 2)?;
+        }
+        Ok(())
+    }
+}
+
+impl std::fmt::Debug for Message {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.debug_fmt(f)
     }
 }

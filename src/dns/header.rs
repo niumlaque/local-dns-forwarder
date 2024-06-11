@@ -97,6 +97,30 @@ impl Header {
 
         Ok(())
     }
+
+    pub fn debug_fmt(&self, f: &mut std::fmt::Formatter<'_>, indent: usize) -> std::fmt::Result {
+        let t = "\t".repeat(indent);
+        writeln!(f, "{t}id: {}", self.id)?;
+        writeln!(f, "{t}recursion_desired: {}", self.recursion_desired)?;
+        writeln!(f, "{t}truncated_message: {}", self.truncated_message)?;
+        writeln!(f, "{t}authoritative_answer: {}", self.authoritative_answer)?;
+        writeln!(f, "{t}opcode: {}", self.opcode)?;
+        writeln!(f, "{t}response: {}", self.response)?;
+        writeln!(f, "{t}rescode: {}", self.rescode)?;
+        writeln!(f, "{t}checking_disabled: {}", self.checking_disabled)?;
+        writeln!(f, "{t}authed_data: {}", self.authed_data)?;
+        writeln!(f, "{t}z: {}", self.z)?;
+        writeln!(f, "{t}recursion_available: {}", self.recursion_available)?;
+        writeln!(f, "{t}questions: {}", self.questions)?;
+        writeln!(f, "{t}answers: {}", self.answers)?;
+        writeln!(
+            f,
+            "{t}authoritative_entries: {}",
+            self.authoritative_entries
+        )?;
+        writeln!(f, "{t}resource_entries: {}", self.resource_entries)?;
+        Ok(())
+    }
 }
 
 impl Default for Header {

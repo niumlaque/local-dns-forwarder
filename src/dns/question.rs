@@ -34,4 +34,12 @@ impl Question {
 
         Ok(())
     }
+
+    pub fn debug_fmt(&self, f: &mut std::fmt::Formatter<'_>, indent: usize) -> std::fmt::Result {
+        let t = "\t".repeat(indent);
+        writeln!(f, "{t}name: {}", self.name)?;
+        writeln!(f, "{t}qtype: {}", self.qtype)?;
+        writeln!(f, "{t}class: {}", self.class)?;
+        Ok(())
+    }
 }
