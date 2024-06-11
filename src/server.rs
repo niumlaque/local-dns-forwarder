@@ -128,39 +128,38 @@ impl<E: ResolveEvent> Runner<E> {
         let mut req_buffer = dns::BytePacketBuffer::new();
         let (_, src) = socket.recv_from(&mut req_buffer.buf)?;
         let mut req = dns::Message::read(&mut req_buffer)?;
-        let mut resp = dns::Message::new();
-        resp.header.id = req.header.id;
-        resp.header.recursion_desired = req.header.recursion_desired;
-        resp.header.recursion_available = req.header.recursion_available;
-        resp.header.response = req.header.response;
+        let mut raw_buf = Vec::new();
 
         if let Some(question) = req.questions.pop() {
             let qtype = question.qtype;
             let name = question.name.clone();
             if question.qtype == dns::QueryType::A || question.qtype == dns::QueryType::AAAA {
                 let status = if self.check_allowlist(&question.name) {
-                    self.lookup(req.header.id, question, &mut resp)?
+                    self.lookup(req.header.id, question, &mut raw_buf)?
                 } else {
                     let res_data = crate::resolved_data::ResolvedData::new(qtype, name);
-                    resp.header.rescode = dns::ResultCode::Refused;
-                    ResolvedStatus::Deny(res_data, resp.header.rescode)
+                    let mut resp = dns::Message::new();
+                    resp.header.id = req.header.id;
+                    resp.header.recursion_desired = req.header.recursion_desired;
+                    resp.header.recursion_available = req.header.recursion_available;
+                    resp.header.response = req.header.response;
+                    let mut resp_buffer = dns::BytePacketBuffer::new();
+                    resp.write(&mut resp_buffer)?;
+                    let len = resp_buffer.pos();
+                    raw_buf.extend(resp_buffer.get_range(0, len)?);
+                    ResolvedStatus::Deny(res_data, dns::ResultCode::Refused)
                 };
                 self.event.resolved(status);
             } else {
-                let status = self.lookup(req.header.id, question, &mut resp)?;
+                let status = self.lookup(req.header.id, question, &mut raw_buf)?;
                 self.event.resolved(status.into_nocheck());
             }
         } else {
-            resp.header.rescode = dns::ResultCode::FormErr;
             self.event
-                .error(format!("{}: {}", resp.header.id, resp.header.rescode));
+                .error(format!("{}: {}", req.header.id, dns::ResultCode::FormErr));
         }
 
-        let mut resp_buffer = dns::BytePacketBuffer::new();
-        resp.write(&mut resp_buffer)?;
-        let len = resp_buffer.pos();
-        let data = resp_buffer.get_range(0, len)?;
-        socket.send_to(data, src)?;
+        socket.send_to(&raw_buf, src)?;
 
         Ok(())
     }
@@ -179,7 +178,7 @@ impl<E: ResolveEvent> Runner<E> {
         &self,
         id: u16,
         question: dns::Question,
-        resp: &mut dns::Message,
+        raw: &mut Vec<u8>,
     ) -> dns::Result<ResolvedStatus> {
         let dns_server = if let Ok(dds) = self.default_dns_server.read() {
             *dds
@@ -190,33 +189,25 @@ impl<E: ResolveEvent> Runner<E> {
         let mut res_data =
             crate::resolved_data::ResolvedData::new(question.qtype, question.name.clone());
 
-        let ret = if let Ok(result) = dns::lookup(
+        let ret = if let Ok((resp_buf, result)) = dns::lookup(
             dns_server,
             id,
             &question.name,
             question.qtype,
             question.class,
         ) {
-            resp.questions.push(question);
-            resp.header.rescode = result.header.rescode;
+            *raw = resp_buf;
 
             for rec in result.answers {
                 match &rec.rdata {
                     dns::RData::A(v) => res_data.insert(dns::QueryType::A, v.to_string()),
                     dns::RData::AAAA(v) => res_data.insert(dns::QueryType::AAAA, v.to_string()),
-                    dns::RData::CNAME(_, v) => res_data.insert(dns::QueryType::CNAME, v),
-                    dns::RData::SRV(_, v) => res_data.insert(dns::QueryType::SRV, v.to_string()),
+                    dns::RData::CNAME(_, v, _) => res_data.insert(dns::QueryType::CNAME, v),
+                    dns::RData::SRV(_, v, _) => res_data.insert(dns::QueryType::SRV, v.to_string()),
                     dns::RData::Unknown(qtype, _) => {
                         res_data.insert(dns::QueryType::UNKNOWN((*qtype).into()), "".to_string())
                     }
                 }
-                resp.answers.push(rec);
-            }
-            for rec in result.authorities {
-                resp.authorities.push(rec);
-            }
-            for rec in result.resources {
-                resp.resources.push(rec);
             }
 
             if result.header.rescode == dns::ResultCode::NoError {
@@ -225,8 +216,7 @@ impl<E: ResolveEvent> Runner<E> {
                 ResolvedStatus::AllowButError(res_data, result.header.rescode)
             }
         } else {
-            resp.header.rescode = dns::ResultCode::ServFail;
-            ResolvedStatus::AllowButError(res_data, resp.header.rescode)
+            ResolvedStatus::AllowButError(res_data, dns::ResultCode::ServFail)
         };
         Ok(ret)
     }

@@ -39,8 +39,8 @@ pub enum RData {
     Unknown(QueryType, Vec<u8>),
     A(Ipv4Addr),
     AAAA(Ipv6Addr),
-    CNAME(u16, String),
-    SRV(u16, SrvRecord),
+    CNAME(u16, String, Vec<u8>),
+    SRV(u16, SrvRecord, Vec<u8>),
 }
 
 impl Record {
@@ -79,15 +79,17 @@ impl Record {
                 RData::AAAA(addr)
             }
             QueryType::CNAME => {
+                let v = buf.get_range(buf.pos(), rdlen as usize)?.to_vec();
                 let name = buf.read_qname()?;
-                RData::CNAME(rdlen, name)
+                RData::CNAME(rdlen, name, v)
             }
             QueryType::SRV => {
+                let v = buf.get_range(buf.pos(), rdlen as usize)?.to_vec();
                 let priority = buf.read_u16()?;
                 let weight = buf.read_u16()?;
                 let port = buf.read_u16()?;
                 let target = buf.read_qname()?;
-                RData::SRV(rdlen, SrvRecord::new(priority, weight, port, target))
+                RData::SRV(rdlen, SrvRecord::new(priority, weight, port, target), v)
             }
             _ => {
                 let v = buf.read_range(rdlen as usize)?;
@@ -131,24 +133,21 @@ impl Record {
                     buf.write_u16(*octet)?;
                 }
             }
-            RData::CNAME(len, name) => {
+            RData::CNAME(len, _name, v) => {
                 buf.write_qname(&self.name)?;
                 buf.write_u16(QueryType::CNAME.into())?;
                 buf.write_u16(self.class)?;
                 buf.write_u32(self.ttl)?;
                 buf.write_u16(*len)?;
-                buf.write_qname(name)?;
+                buf.write_range(v)?;
             }
-            RData::SRV(len, v) => {
+            RData::SRV(len, _srv, v) => {
                 buf.write_qname(&self.name)?;
                 buf.write_u16(QueryType::SRV.into())?;
                 buf.write_u16(self.class)?;
                 buf.write_u32(self.ttl)?;
                 buf.write_u16(*len)?;
-                buf.write_u16(v.priority)?;
-                buf.write_u16(v.weight)?;
-                buf.write_u16(v.port)?;
-                buf.write_qname(&v.target)?;
+                buf.write_range(v)?;
             }
             RData::Unknown(qtype, v) => {
                 buf.write_qname(&self.name)?;
@@ -172,8 +171,8 @@ impl Record {
         match &self.rdata {
             RData::A(v) => writeln!(f, "{t}{v}")?,
             RData::AAAA(v) => writeln!(f, "{t}{v}")?,
-            RData::CNAME(_, v) => writeln!(f, "{t}{v}")?,
-            RData::SRV(_, v) => v.debug_fmt(f, indent)?,
+            RData::CNAME(_, v, _) => writeln!(f, "{t}{v}")?,
+            RData::SRV(_, v, _) => v.debug_fmt(f, indent)?,
             RData::Unknown(_, v) => writeln!(f, "len: {}", v.len())?,
         }
         Ok(())

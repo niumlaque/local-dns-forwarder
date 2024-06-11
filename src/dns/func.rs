@@ -12,7 +12,7 @@ pub fn lookup(
     name: impl Into<String>,
     qtype: QueryType,
     class: u16,
-) -> Result<Message> {
+) -> Result<(Vec<u8>, Message)> {
     let server = (dns_server, 53);
     let socket = UdpSocket::bind(("0.0.0.0", 43210))?;
     let mut msg = Message::new();
@@ -26,7 +26,10 @@ pub fn lookup(
     socket.send_to(&req.buf[0..req.pos], server)?;
 
     let mut resp = BytePacketBuffer::new();
-    socket.recv_from(&mut resp.buf)?;
+    let (len, _) = socket.recv_from(&mut resp.buf)?;
+    let mut raw = vec![0; resp.buf.len()];
+    raw.copy_from_slice(&resp.buf);
+    raw.shrink_to(len);
 
-    Message::read(&mut resp)
+    Ok((raw, Message::read(&mut resp)?))
 }
