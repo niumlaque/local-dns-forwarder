@@ -41,11 +41,28 @@ impl AllowList {
     pub fn save(&self) -> Result<()> {
         self.inner.save()
     }
+
+    pub fn iter(&self) -> AllowListIterator<impl std::iter::Iterator<Item = &str>> {
+        AllowListIterator {
+            source: self.inner.iter(),
+        }
+    }
 }
 
 impl Default for AllowList {
     fn default() -> Self {
         Self::in_memory()
+    }
+}
+
+pub struct AllowListIterator<I: std::iter::Iterator> {
+    source: I,
+}
+
+impl<'a, I: std::iter::Iterator<Item = &'a str>> Iterator for AllowListIterator<I> {
+    type Item = &'a str;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.source.next()
     }
 }
 
@@ -115,5 +132,23 @@ impl InMemoryAllowList {
         } else {
             Err(Error::SaveButInMemory)
         }
+    }
+
+    pub fn iter(&self) -> InMemoryAllowListIterator<'_> {
+        InMemoryAllowListIterator {
+            inner: self.names.keys(),
+        }
+    }
+}
+
+pub struct InMemoryAllowListIterator<'a> {
+    inner: std::collections::hash_map::Keys<'a, std::string::String, ()>,
+}
+
+impl<'a> Iterator for InMemoryAllowListIterator<'a> {
+    type Item = &'a str;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next().map(|x| x as &str)
     }
 }

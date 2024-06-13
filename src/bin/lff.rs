@@ -234,6 +234,22 @@ fn on_ipctl(
             };
             msg
         }
+        "list" => {
+            let msg = if let Ok(allowlist) = allowlist.read() {
+                let mut names = Vec::with_capacity(allowlist.count());
+                for name in allowlist.iter() {
+                    names.push(name);
+                }
+
+                tracing::info!("Returned the list of FQDN(s)");
+                names.join("\n").to_string()
+            } else {
+                let msg = "Failed to get allowlist";
+                tracing::error!("{msg}: Could not get read lock");
+                msg.into()
+            };
+            msg
+        }
         _ => inv(),
     }
 }
