@@ -65,6 +65,15 @@ impl BytePacketBuffer {
         }
     }
 
+    pub fn get_all(&self) -> Result<&[u8]> {
+        let len = self.pos();
+        if len < BUF_SIZE {
+            Ok(&self.buf[0..len])
+        } else {
+            Err(Error::EndOfBuffer)
+        }
+    }
+
     pub fn read_u16(&mut self) -> Result<u16> {
         Ok(((self.read()? as u16) << 8) | (self.read()? as u16))
     }

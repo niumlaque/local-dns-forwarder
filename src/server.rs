@@ -137,17 +137,11 @@ impl<E: ResolveEvent> Runner<E> {
                 let status = if self.check_allowlist(&question.name) {
                     self.lookup(req.header.id, question, &mut raw_buf)?
                 } else {
+                    let (resp, resp_buffer) =
+                        Self::make_error_resp_msg(&req, dns::ResultCode::NXDomain)?;
+                    raw_buf.extend(resp_buffer.get_all()?);
                     let res_data = crate::resolved_data::ResolvedData::new(qtype, name);
-                    let mut resp = dns::Message::new();
-                    resp.header.id = req.header.id;
-                    resp.header.recursion_desired = req.header.recursion_desired;
-                    resp.header.recursion_available = req.header.recursion_available;
-                    resp.header.response = req.header.response;
-                    let mut resp_buffer = dns::BytePacketBuffer::new();
-                    resp.write(&mut resp_buffer)?;
-                    let len = resp_buffer.pos();
-                    raw_buf.extend(resp_buffer.get_range(0, len)?);
-                    ResolvedStatus::Deny(res_data, dns::ResultCode::Refused)
+                    ResolvedStatus::Deny(res_data, resp.header.rescode)
                 };
                 self.event.resolved(status);
             } else {
@@ -155,8 +149,10 @@ impl<E: ResolveEvent> Runner<E> {
                 self.event.resolved(status.into_nocheck());
             }
         } else {
+            let (resp, resp_buffer) = Self::make_error_resp_msg(&req, dns::ResultCode::FormErr)?;
+            raw_buf.extend(resp_buffer.get_all()?);
             self.event
-                .error(format!("{}: {}", req.header.id, dns::ResultCode::FormErr));
+                .error(format!("{}: {}", req.header.id, resp.header.rescode));
         }
 
         socket.send_to(&raw_buf, src)?;
@@ -219,5 +215,20 @@ impl<E: ResolveEvent> Runner<E> {
             ResolvedStatus::AllowButError(res_data, dns::ResultCode::ServFail)
         };
         Ok(ret)
+    }
+
+    fn make_error_resp_msg(
+        req: &dns::Message,
+        result_code: dns::ResultCode,
+    ) -> dns::Result<(dns::Message, dns::BytePacketBuffer)> {
+        let mut resp = dns::Message::new();
+        resp.header.id = req.header.id;
+        resp.header.recursion_desired = req.header.recursion_desired;
+        resp.header.recursion_available = req.header.recursion_available;
+        resp.header.response = req.header.response;
+        resp.header.rescode = result_code;
+        let mut resp_buffer = dns::BytePacketBuffer::new();
+        resp.write(&mut resp_buffer)?;
+        Ok((resp, resp_buffer))
     }
 }
