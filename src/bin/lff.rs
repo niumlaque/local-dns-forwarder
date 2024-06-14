@@ -93,14 +93,10 @@ impl InnerConfig {
 }
 
 fn get_config_path(cli: &Cli) -> Result<PathBuf> {
-    use std::env;
     if let Some(config_path) = cli.config.as_ref() {
         absolute_path(config_path)
     } else {
-        let mut path = env::current_exe()?;
-        path.pop();
-        path.push("lff.toml");
-        Ok(path)
+        Ok(Path::new("/etc/lff/config.toml").to_path_buf())
     }
 }
 

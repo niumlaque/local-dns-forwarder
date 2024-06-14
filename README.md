@@ -22,7 +22,7 @@ cargo build --release
 
 ## Configuration
 
-The application reads configuration settings from a `lff.toml` file, which can be placed in the same directory as the executable or specified at runtime using the `-f` flag like so: `lff -f /path/to/config.toml`.
+The application reads configuration settings from a `/etc/lff/config.toml` file, which can be placed in the same directory as the executable or specified at runtime using the `-f` flag like so: `lff -f /path/to/config.toml`.
 
 The `config.toml` file should have the following structure:
 ```toml
