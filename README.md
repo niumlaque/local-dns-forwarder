@@ -1,6 +1,6 @@
 # Local FQDN Filter
-This application is a local DNS server written in Rust, created as a project to help me learn the Rust programming language.
-The server operates by resolving domain names based on a predefined allowlist of Fully Qualified Domain Names (FQDNs).
+This application is created as a project to help me learn the Rust programming language.
+The server filters requests based on a predefined allowlist of Fully Qualified Domain Names (FQDNs).
 
 ## Features
 
@@ -22,7 +22,7 @@ cargo build --release
 
 ## Configuration
 
-The application reads configuration settings from a `local-fqdn-filter.toml` file, which can be placed in the same directory as the executable or specified at runtime using the `-f` flag like so: `local-fqdn-filter -f /path/to/config.toml`.
+The application reads configuration settings from a `lff.toml` file, which can be placed in the same directory as the executable or specified at runtime using the `-f` flag like so: `lff -f /path/to/config.toml`.
 
 The `config.toml` file should have the following structure:
 ```toml

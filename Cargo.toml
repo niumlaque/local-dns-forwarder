@@ -16,5 +16,5 @@ ipctl = { git = "https://github.com/niumlaque/ipctl", branch = "master", feature
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
 
 [[bin]]
-name = "local-fqdn-filter"
+name = "lff"
 path = "src/bin/lff.rs"

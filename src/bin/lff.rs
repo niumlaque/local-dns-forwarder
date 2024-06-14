@@ -99,7 +99,7 @@ fn get_config_path(cli: &Cli) -> Result<PathBuf> {
     } else {
         let mut path = env::current_exe()?;
         path.pop();
-        path.push("local-fqdn-filter.toml");
+        path.push("lff.toml");
         Ok(path)
     }
 }
