@@ -49,7 +49,7 @@ impl BytePacketBuffer {
         }
     }
 
-    pub fn get(&mut self, pos: usize) -> Result<u8> {
+    pub fn get(&self, pos: usize) -> Result<u8> {
         if self.pos < BUF_SIZE {
             Ok(self.buf[pos])
         } else {
@@ -57,7 +57,7 @@ impl BytePacketBuffer {
         }
     }
 
-    pub fn get_range(&mut self, pos: usize, len: usize) -> Result<&[u8]> {
+    pub fn get_range(&self, pos: usize, len: usize) -> Result<&[u8]> {
         if pos + len < BUF_SIZE {
             Ok(&self.buf[pos..pos + len])
         } else {
