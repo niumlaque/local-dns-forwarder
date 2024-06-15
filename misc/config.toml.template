@@ -1,0 +1,9 @@
+[general]
+allowlist = "/etc/lff/allowlist.txt"
+log_dir = "/var/log/lff"
+
+[server]
+address = "127.0.0.1"
+port = 53
+default_dns_server = "8.8.8.8"
+
