@@ -1,7 +1,8 @@
 use anyhow::Result;
 use clap::Parser;
 use local_fqdn_filter::logger::{self, LogContext};
-use local_fqdn_filter::{AllowList, Server, TracingResolveEvent};
+use local_fqdn_filter::{AllowList, Server};
+use local_fqdn_filter::{ResolveEvent, ResolvedData, ResolvedStatus};
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
@@ -89,6 +90,60 @@ impl InnerConfig {
             allowlist,
             server: config.server,
         })
+    }
+}
+
+pub struct LFFResolveEvent {
+    threshold: usize,
+    count_map: Arc<RwLock<std::collections::HashMap<u64, usize>>>,
+}
+
+impl LFFResolveEvent {
+    fn new(threshold: usize) -> Self {
+        Self {
+            threshold,
+            count_map: Default::default(),
+        }
+    }
+
+    fn code(d: &ResolvedData) -> u64 {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        let mut hasher = DefaultHasher::new();
+        d.req_qtype.hash(&mut hasher);
+        d.req_name.hash(&mut hasher);
+        hasher.finish()
+    }
+}
+
+impl ResolveEvent for LFFResolveEvent {
+    fn resolving(&self, _name: &str) {}
+
+    fn resolved(&self, status: ResolvedStatus) {
+        let code = match &status {
+            ResolvedStatus::Allow(v) => Self::code(v),
+            ResolvedStatus::AllowButError(v, _) => Self::code(v),
+            ResolvedStatus::Deny(v, _) => Self::code(v),
+            ResolvedStatus::NoCheck(v) => Self::code(v),
+            ResolvedStatus::NoCheckButError(v, _) => Self::code(v),
+        };
+
+        if let Ok(mut count_map) = self.count_map.write() {
+            let count = count_map.entry(code).or_insert(0);
+            if *count < self.threshold {
+                tracing::info!("{status}");
+            }
+            if *count + 1 == self.threshold {
+                tracing::warn!("Since the number of requests has exceeded the threshold, log output will be suppressed from now on")
+            }
+            *count = count.saturating_add(1);
+        } else {
+            tracing::info!("{status}");
+        }
+    }
+
+    fn error(&self, message: impl AsRef<str>) {
+        tracing::error!("{}", message.as_ref());
     }
 }
 
@@ -287,7 +342,7 @@ async fn main() -> Result<()> {
     tracing::info!("Start Local FQDN Filter");
     let server = Server::from_config(config.server)
         .allowlist(allowlist)
-        .event(TracingResolveEvent)
+        .event(LFFResolveEvent::new(3))
         .build();
 
     let allowlist = Arc::clone(&server.allowlist);

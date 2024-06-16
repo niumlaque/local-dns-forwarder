@@ -10,4 +10,6 @@ pub mod server;
 pub use allowlist::AllowList;
 pub use error::{Error, Result};
 pub use resolve_event::{DefaultResolveEvent, ResolveEvent, TracingResolveEvent};
+pub use resolved_data::ResolvedData;
+pub use resolved_status::ResolvedStatus;
 pub use server::{Config, Server, ServerConfigBuilder};
