@@ -339,7 +339,6 @@ async fn main() -> Result<()> {
         .parse()
         .expect("Failed to parse endpoint for ipctl Server");
 
-    tracing::info!("Start Local FQDN Filter");
     let server = Server::from_config(config.server)
         .allowlist(allowlist)
         .event(LFFResolveEvent::new(3))
@@ -349,6 +348,7 @@ async fn main() -> Result<()> {
     let handler =
         ipctl::Server::new(move |x: &str| on_ipctl(x, &reload_handle, Arc::clone(&allowlist)))
             .spawn_and_serve(addr);
+    tracing::info!("Start Local FQDN Filter");
     server.serve()?;
 
     handler.join().await?;
