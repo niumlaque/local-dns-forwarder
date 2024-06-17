@@ -7,7 +7,6 @@ use super::record::Record;
 /// All communications inside of the domain protocol are carried in a single
 /// format called a message.  The top level format of message is divided
 /// into 5 sections (some of which are empty in certain cases) shown below:
-///
 ///     +---------------------+
 ///     |        Header       |
 ///     +---------------------+
@@ -19,7 +18,6 @@ use super::record::Record;
 ///     +---------------------+
 ///     |      Additional     | RRs holding additional information
 ///     +---------------------+
-///
 /// The header section is always present.  The header includes fields that
 /// specify which of the remaining sections are present, and also specify
 /// whether the message is a query or a response, a standard query or some
