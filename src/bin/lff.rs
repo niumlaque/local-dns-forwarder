@@ -18,6 +18,8 @@ struct Cli {
 struct GeneralConfig {
     loglevel: Option<String>,
     log_dir: Option<PathBuf>,
+    output_allowed_log: Option<bool>,
+    output_nochecked_log: Option<bool>,
     allowlist: Option<PathBuf>,
 }
 
@@ -26,6 +28,8 @@ impl Default for GeneralConfig {
         Self {
             loglevel: Some("info".into()),
             log_dir: None,
+            output_allowed_log: Some(false),
+            output_nochecked_log: Some(false),
             allowlist: None,
         }
     }
@@ -61,6 +65,8 @@ impl Default for Config {
 struct InnerConfig {
     loglevel: tracing::Level,
     log_dir: Option<PathBuf>,
+    output_allowed_log: bool,
+    output_nochecked_log: bool,
     allowlist: Option<PathBuf>,
     server: local_fqdn_filter::Config,
 }
@@ -87,6 +93,8 @@ impl InnerConfig {
         Ok(Self {
             loglevel,
             log_dir,
+            output_allowed_log: general.output_allowed_log.unwrap_or(false),
+            output_nochecked_log: general.output_nochecked_log.unwrap_or(false),
             allowlist,
             server: config.server,
         })
@@ -96,13 +104,17 @@ impl InnerConfig {
 pub struct LFFResolveEvent {
     threshold: usize,
     count_map: Arc<RwLock<std::collections::HashMap<u64, usize>>>,
+    output_allowed_log: bool,
+    output_nochecked_log: bool,
 }
 
 impl LFFResolveEvent {
-    fn new(threshold: usize) -> Self {
+    fn new(threshold: usize, output_allowed_log: bool, output_nochecked_log: bool) -> Self {
         Self {
             threshold,
             count_map: Default::default(),
+            output_allowed_log,
+            output_nochecked_log,
         }
     }
 
@@ -120,13 +132,30 @@ impl ResolveEvent for LFFResolveEvent {
     fn resolving(&self, _name: &str) {}
 
     fn resolved(&self, status: ResolvedStatus) {
+        let mut ignore = false;
         let code = match &status {
-            ResolvedStatus::Allow(v) => Self::code(v),
-            ResolvedStatus::AllowButError(v, _) => Self::code(v),
+            ResolvedStatus::Allow(v) => {
+                ignore = !self.output_allowed_log;
+                Self::code(v)
+            }
+            ResolvedStatus::AllowButError(v, _) => {
+                ignore = !self.output_allowed_log;
+                Self::code(v)
+            }
             ResolvedStatus::Deny(v, _) => Self::code(v),
-            ResolvedStatus::NoCheck(v) => Self::code(v),
-            ResolvedStatus::NoCheckButError(v, _) => Self::code(v),
+            ResolvedStatus::NoCheck(v) => {
+                ignore = !self.output_nochecked_log;
+                Self::code(v)
+            }
+            ResolvedStatus::NoCheckButError(v, _) => {
+                ignore = !self.output_nochecked_log;
+                Self::code(v)
+            }
         };
+
+        if ignore {
+            return;
+        }
 
         if let Ok(mut count_map) = self.count_map.write() {
             let count = count_map.entry(code).or_insert(0);
@@ -321,6 +350,11 @@ async fn main() -> Result<()> {
     let log = logger::init(config.loglevel, config.log_dir.as_ref());
     println!("[Config] Log Level: {}", config.loglevel);
 
+    tracing::info!("[Config] Output Allowed Log: {}", config.output_allowed_log);
+    tracing::info!(
+        "[Config] Output NoChecked Log: {}",
+        config.output_nochecked_log
+    );
     tracing::info!("[Config] Server: {}", config.server);
     if let Some(allowlist_path) = config.allowlist.as_ref() {
         tracing::info!("[Config] AllowList: {}", allowlist_path.display());
@@ -341,7 +375,11 @@ async fn main() -> Result<()> {
 
     let server = Server::from_config(config.server)
         .allowlist(allowlist)
-        .event(LFFResolveEvent::new(3))
+        .event(LFFResolveEvent::new(
+            3,
+            config.output_allowed_log,
+            config.output_nochecked_log,
+        ))
         .build();
 
     let allowlist = Arc::clone(&server.allowlist);
