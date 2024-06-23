@@ -1,0 +1,12 @@
+[Unit]
+Description=Local FQDN Filter
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/lff
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+
