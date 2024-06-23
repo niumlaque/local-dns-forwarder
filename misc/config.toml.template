@@ -1,6 +1,10 @@
 [general]
-allowlist = "/etc/lff/allowlist.txt"
-log_dir = "/var/log/lff"
+# allowlist = "/etc/lff/allowlist.txt"
+# denylist = "/etc/lff/denylist.txt"
+# log_dir = "/var/log/lff"
+# output_allowed_log = false
+# output_nochecked_log = false
+# loglevel = "info"
 
 [server]
 address = "127.0.0.1"
