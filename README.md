@@ -3,25 +3,22 @@ This application is created as a project to help me learn the Rust programming l
 The server filters requests based on a predefined allowlist of Fully Qualified Domain Names (FQDNs).
 
 ## Features
-
-- **Allowlist-Based Resolution**: The server reads a list of allowed FQDNs at startup.
-- **Selective Resolution**: Only resolves domain names that are on the allowlist.
-- **Configurable Upstream DNS**: For allowed domains, the server forwards the request to a specified upstream DNS server.
-- **Ignore Non-Allowlisted Domains**: Any request for a domain not on the allowlist is ignored.
+- FQDNs listed in the denylist are unconditionally not resolved
+- Only FQDNs listed in the allowlist are resolved
 
 ## Installation
+To install this application, ensure you have Rust installed.
 
-To run this application, ensure you have Rust installed. You can install Rust using [rustup](https://rustup.rs/).
-
-Clone this repository and navigate to the project directory, and build the project using Cargo:
+Clone this repository, navigate to the project directory, and build the project using the Makefile:
 ```sh
-glt clone https://github.com/niumlaque/local-fqdn-filter.git
-cd local-fqdn-filter.git
-cargo build --release
+$ glt clone https://github.com/niumlaque/local-fqdn-filter.git
+$ cd local-fqdn-filter.git
+$ make
+$ sudo make install
+$ sudo make install-config
 ```
 
 ## Configuration
-
 The application reads configuration settings from a `/etc/lff/config.toml` file, which can be placed in the same directory as the executable or specified at runtime using the `-f` flag like so: `lff -f /path/to/config.toml`.
 
 The `config.toml` file should have the following structure:
@@ -29,10 +26,16 @@ The `config.toml` file should have the following structure:
 [general]
 # Path to the allowlist file containing allowed FQDNs, one per line (Option)
 allowlist = "allowlist.txt"
+# Path to the denylist file containing FQDNs to deny, one per line (Option)
+denylist = "denylist.txt"
 # Log level: options are "trace", "debug", "info", "warn", "error" (Option)
 loglevel = "info"
 # Directory where log files will be stored (Option)
 log_dir = "/path/to/log/directory"
+# Indicates whether to log allowed FQDNs (Option)
+output_allowed_log = false
+# Indicates whether to log FQDNs that are not checked (Option)
+output_nochecked_log = false
 
 [server]
 # The address the application will bind to
@@ -50,8 +53,11 @@ www.rust-lang.org
 ```
 
 ## Usage
-Run the application using Cargo:
+Run the application:
 ```sh
-cargo run --release -- -f /path/to/config.toml
+# $ make
+# $ sudo make install
+# $ sudo make install-config
+$ sudo lff
 ```
 The server will start and begin listening for DNS queries. It will only process requests for domains listed in allowlist.txt and forward them to the specified upstream DNS server. All other requests will be ignored.
