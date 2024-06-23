@@ -6,11 +6,11 @@ use std::path::PathBuf;
 use wildmatch::WildMatch;
 
 #[derive(Debug)]
-pub struct AllowList {
+pub struct CheckList {
     inner: InMemoryAllowList,
 }
 
-impl AllowList {
+impl CheckList {
     pub fn in_memory() -> Self {
         Self {
             inner: InMemoryAllowList::new(),
@@ -50,7 +50,7 @@ impl AllowList {
     }
 }
 
-impl Default for AllowList {
+impl Default for CheckList {
     fn default() -> Self {
         Self::in_memory()
     }

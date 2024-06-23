@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::Parser;
 use local_fqdn_filter::logger::{self, LogContext};
-use local_fqdn_filter::{AllowList, Server};
+use local_fqdn_filter::{CheckList, Server};
 use local_fqdn_filter::{ResolveEvent, ResolvedData, ResolvedStatus};
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
@@ -21,6 +21,7 @@ struct GeneralConfig {
     output_allowed_log: Option<bool>,
     output_nochecked_log: Option<bool>,
     allowlist: Option<PathBuf>,
+    denylist: Option<PathBuf>,
 }
 
 impl Default for GeneralConfig {
@@ -31,6 +32,7 @@ impl Default for GeneralConfig {
             output_allowed_log: Some(false),
             output_nochecked_log: Some(false),
             allowlist: None,
+            denylist: None,
         }
     }
 }
@@ -68,6 +70,7 @@ struct InnerConfig {
     output_allowed_log: bool,
     output_nochecked_log: bool,
     allowlist: Option<PathBuf>,
+    denylist: Option<PathBuf>,
     server: local_fqdn_filter::Config,
 }
 
@@ -90,12 +93,18 @@ impl InnerConfig {
         } else {
             None
         };
+        let denylist = if let Some(denylist) = general.denylist {
+            Some(absolute_path(denylist)?)
+        } else {
+            None
+        };
         Ok(Self {
             loglevel,
             log_dir,
             output_allowed_log: general.output_allowed_log.unwrap_or(false),
             output_nochecked_log: general.output_nochecked_log.unwrap_or(false),
             allowlist,
+            denylist,
             server: config.server,
         })
     }
@@ -184,14 +193,20 @@ fn get_config_path(cli: &Cli) -> Result<PathBuf> {
     }
 }
 
-fn get_allowlist(config: &InnerConfig) -> Result<AllowList> {
+fn get_checklists(config: &InnerConfig) -> Result<(CheckList, CheckList)> {
     let allowlist = if let Some(path) = config.allowlist.as_ref() {
-        AllowList::text(path.to_path_buf())?
+        CheckList::text(path.to_path_buf())?
     } else {
-        AllowList::in_memory()
+        CheckList::in_memory()
     };
 
-    Ok(allowlist)
+    let denylist = if let Some(path) = config.denylist.as_ref() {
+        CheckList::text(path.to_path_buf())?
+    } else {
+        CheckList::in_memory()
+    };
+
+    Ok((allowlist, denylist))
 }
 
 fn absolute_path(path: impl AsRef<Path>) -> Result<PathBuf> {
@@ -208,7 +223,7 @@ fn absolute_path(path: impl AsRef<Path>) -> Result<PathBuf> {
 fn on_ipctl(
     command: &str,
     reload_handle: &logger::ReloadHandle,
-    allowlist: Arc<RwLock<AllowList>>,
+    allowlist: Arc<RwLock<CheckList>>,
 ) -> String {
     use std::str::FromStr;
     let inv = || {
@@ -334,22 +349,10 @@ fn on_ipctl(
     }
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    let cli = Cli::parse();
-    let config_path = get_config_path(&cli)?;
-    println!("[Config] Config path: {}", config_path.display());
-    let config = if config_path.exists() {
-        Config::load(config_path)?
-    } else {
-        println!("[Config] Config file not found");
-        println!("[Config] Load default config");
-        Config::default()
-    };
-    let config = InnerConfig::new(config)?;
-    let log = logger::init(config.loglevel, config.log_dir.as_ref());
-    println!("[Config] Log Level: {}", config.loglevel);
-
+async fn exec(
+    config: InnerConfig,
+    reload_handle: local_fqdn_filter::logger::ReloadHandle,
+) -> Result<()> {
     tracing::info!("[Config] Output Allowed Log: {}", config.output_allowed_log);
     tracing::info!(
         "[Config] Output NoChecked Log: {}",
@@ -361,13 +364,14 @@ async fn main() -> Result<()> {
     } else {
         tracing::info!("[Config] AllowList: None");
     }
-    let allowlist = get_allowlist(&config)?;
+    if let Some(denylist_path) = config.denylist.as_ref() {
+        tracing::info!("[Config] DenyList: {}", denylist_path.display());
+    } else {
+        tracing::info!("[Config] DenyList: None");
+    }
+    let (allowlist, denylist) = get_checklists(&config)?;
     tracing::info!("[Config] Allowing {} FQDN(s)", allowlist.count());
-
-    let LogContext {
-        reload_handle,
-        file_guard: _file_guard,
-    } = log;
+    tracing::info!("[Config] Denying {} FQDN(s)", denylist.count());
 
     let addr = "127.0.0.1:60001"
         .parse()
@@ -375,6 +379,7 @@ async fn main() -> Result<()> {
 
     let server = Server::from_config(config.server)
         .allowlist(allowlist)
+        .denylist(denylist)
         .event(LFFResolveEvent::new(
             3,
             config.output_allowed_log,
@@ -391,4 +396,46 @@ async fn main() -> Result<()> {
 
     handler.join().await?;
     Ok(())
+}
+
+fn exit<R>(e: anyhow::Error) -> R {
+    eprintln!("{e}");
+    std::process::exit(1);
+}
+
+#[tokio::main]
+async fn main() {
+    let cli = Cli::parse();
+    let config_path = get_config_path(&cli).unwrap_or_else(exit);
+    println!("[Config] Config path: {}", config_path.display());
+    let config = if config_path.exists() {
+        Config::load(config_path).unwrap_or_else(exit)
+    } else {
+        println!("[Config] Config file not found");
+        println!("[Config] Load default config");
+        Config::default()
+    };
+    let config = InnerConfig::new(config).unwrap_or_else(exit);
+    let log = logger::init(config.loglevel, config.log_dir.as_ref());
+    println!("[Config] Log Level: {}", config.loglevel);
+
+    let code = {
+        let LogContext {
+            reload_handle,
+            file_guard: _file_guard,
+        } = log;
+
+        match exec(config, reload_handle).await {
+            Ok(_) => 0,
+            Err(e) => {
+                tracing::error!(
+                    "The application has encountered a critical error and will now terminate"
+                );
+                tracing::error!("{e}");
+                1
+            }
+        }
+    };
+
+    std::process::exit(code);
 }
