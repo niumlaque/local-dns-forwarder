@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::Parser;
 use local_fqdn_filter::logger::{self, LogContext};
-use local_fqdn_filter::{CheckList, Server};
+use local_fqdn_filter::{AllowDenyList, CheckList, Server};
 use local_fqdn_filter::{ResolveEvent, ResolvedData, ResolvedStatus};
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
@@ -193,7 +193,17 @@ fn get_config_path(cli: &Cli) -> Result<PathBuf> {
     }
 }
 
-fn get_checklists(config: &InnerConfig) -> Result<(CheckList, CheckList)> {
+fn get_checklist(config: &InnerConfig) -> Result<AllowDenyList> {
+    if let Some(allowlist_path) = config.allowlist.as_ref() {
+        tracing::info!("[Config] AllowList: {}", allowlist_path.display());
+    } else {
+        tracing::info!("[Config] AllowList: None");
+    }
+    if let Some(denylist_path) = config.denylist.as_ref() {
+        tracing::info!("[Config] DenyList: {}", denylist_path.display());
+    } else {
+        tracing::info!("[Config] DenyList: None");
+    }
     let allowlist = if let Some(path) = config.allowlist.as_ref() {
         CheckList::text(path.to_path_buf())?
     } else {
@@ -205,8 +215,10 @@ fn get_checklists(config: &InnerConfig) -> Result<(CheckList, CheckList)> {
     } else {
         CheckList::in_memory()
     };
+    tracing::info!("[Config] Allowing {} FQDN(s)", allowlist.count());
+    tracing::info!("[Config] Denying {} FQDN(s)", denylist.count());
 
-    Ok((allowlist, denylist))
+    Ok(AllowDenyList::new(allowlist, denylist))
 }
 
 fn absolute_path(path: impl AsRef<Path>) -> Result<PathBuf> {
@@ -223,7 +235,7 @@ fn absolute_path(path: impl AsRef<Path>) -> Result<PathBuf> {
 fn on_ipctl(
     command: &str,
     reload_handle: &logger::ReloadHandle,
-    allowlist: Arc<RwLock<CheckList>>,
+    checklist: Arc<RwLock<AllowDenyList>>,
 ) -> String {
     use std::str::FromStr;
     let inv = || {
@@ -268,8 +280,8 @@ fn on_ipctl(
             }
 
             let fqdn = splitted[1];
-            let msg = if let Ok(mut allowlist) = allowlist.write() {
-                let msg = if allowlist.add(fqdn) > 0 {
+            let msg = if let Ok(mut checklist) = checklist.write() {
+                let msg = if checklist.allowlist.add(fqdn) > 0 {
                     format!("Add {fqdn} to AllowList")
                 } else {
                     format!("{fqdn} is already in AllowList")
@@ -291,8 +303,8 @@ fn on_ipctl(
             }
 
             let fqdn = splitted[1];
-            let msg = if let Ok(mut allowlist) = allowlist.write() {
-                let msg = if allowlist.delete(fqdn) > 0 {
+            let msg = if let Ok(mut checklist) = checklist.write() {
+                let msg = if checklist.allowlist.delete(fqdn) > 0 {
                     format!("Remove {fqdn} from AllowList")
                 } else {
                     format!("{fqdn} is not in AllowList")
@@ -309,8 +321,8 @@ fn on_ipctl(
             msg
         }
         "save" => {
-            let msg = if let Ok(allowlist) = allowlist.read() {
-                match allowlist.save() {
+            let msg = if let Ok(checklist) = checklist.read() {
+                match checklist.allowlist.save() {
                     Ok(()) => {
                         let msg = "AllowList is saved";
                         tracing::info!("{msg}");
@@ -330,9 +342,9 @@ fn on_ipctl(
             msg
         }
         "list" => {
-            let msg = if let Ok(allowlist) = allowlist.read() {
-                let mut names = Vec::with_capacity(allowlist.count());
-                for name in allowlist.iter() {
+            let msg = if let Ok(checklist) = checklist.read() {
+                let mut names = Vec::with_capacity(checklist.allowlist.count());
+                for name in checklist.allowlist.iter() {
                     names.push(name);
                 }
 
@@ -359,27 +371,17 @@ async fn exec(
         config.output_nochecked_log
     );
     tracing::info!("[Config] Server: {}", config.server);
-    if let Some(allowlist_path) = config.allowlist.as_ref() {
-        tracing::info!("[Config] AllowList: {}", allowlist_path.display());
-    } else {
-        tracing::info!("[Config] AllowList: None");
-    }
-    if let Some(denylist_path) = config.denylist.as_ref() {
-        tracing::info!("[Config] DenyList: {}", denylist_path.display());
-    } else {
-        tracing::info!("[Config] DenyList: None");
-    }
-    let (allowlist, denylist) = get_checklists(&config)?;
-    tracing::info!("[Config] Allowing {} FQDN(s)", allowlist.count());
-    tracing::info!("[Config] Denying {} FQDN(s)", denylist.count());
+
+    let checklist = get_checklist(&config)?;
+    tracing::info!("[Config] Allowing {} FQDN(s)", checklist.allowlist.count());
+    tracing::info!("[Config] Denying {} FQDN(s)", checklist.denylist.count());
 
     let addr = "127.0.0.1:60001"
         .parse()
         .expect("Failed to parse endpoint for ipctl Server");
 
     let server = Server::from_config(config.server)
-        .allowlist(allowlist)
-        .denylist(denylist)
+        .checklist(checklist)
         .event(LFFResolveEvent::new(
             3,
             config.output_allowed_log,
@@ -387,9 +389,9 @@ async fn exec(
         ))
         .build();
 
-    let allowlist = Arc::clone(&server.allowlist);
+    let checklist = Arc::clone(&server.checklist);
     let handler =
-        ipctl::Server::new(move |x: &str| on_ipctl(x, &reload_handle, Arc::clone(&allowlist)))
+        ipctl::Server::new(move |x: &str| on_ipctl(x, &reload_handle, Arc::clone(&checklist)))
             .spawn_and_serve(addr);
     tracing::info!("Start Local FQDN Filter");
     server.serve()?;

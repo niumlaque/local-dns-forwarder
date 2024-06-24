@@ -1,7 +1,7 @@
+use crate::allow_deny_list::{AllowDenyList, CheckStatus};
 use crate::dns;
 use crate::resolve_event::{DefaultResolveEvent, ResolveEvent};
 use crate::resolved_status::ResolvedStatus;
-use crate::CheckList;
 use serde::Deserialize;
 use std::fmt::Display;
 use std::net::{Ipv4Addr, UdpSocket};
@@ -46,8 +46,7 @@ impl Display for Config {
 
 pub struct ServerBuilder<E: ResolveEvent> {
     config: Config,
-    allowlist: CheckList,
-    denylist: CheckList,
+    checklist: AllowDenyList,
     event: E,
 }
 
@@ -58,25 +57,14 @@ impl<E: ResolveEvent> ServerBuilder<E> {
             config: self.config,
             default_dns_server: Arc::new(RwLock::new(default_dns_server)),
             event: self.event,
-            allowlist: Arc::new(RwLock::new(self.allowlist)),
-            denylist: Arc::new(RwLock::new(self.denylist)),
+            checklist: Arc::new(RwLock::new(self.checklist)),
         }
     }
 
-    pub fn allowlist(self, allowlist: CheckList) -> Self {
+    pub fn checklist(self, checklist: AllowDenyList) -> Self {
         Self {
             config: self.config,
-            allowlist,
-            denylist: self.denylist,
-            event: self.event,
-        }
-    }
-
-    pub fn denylist(self, denylist: CheckList) -> Self {
-        Self {
-            config: self.config,
-            allowlist: self.allowlist,
-            denylist,
+            checklist,
             event: self.event,
         }
     }
@@ -84,8 +72,7 @@ impl<E: ResolveEvent> ServerBuilder<E> {
 
 pub struct ServerConfigBuilder {
     config: Config,
-    allowlist: CheckList,
-    denylist: CheckList,
+    checklist: AllowDenyList,
 }
 
 impl ServerConfigBuilder {
@@ -93,24 +80,14 @@ impl ServerConfigBuilder {
         ServerBuilder {
             config: self.config,
             event,
-            allowlist: self.allowlist,
-            denylist: self.denylist,
+            checklist: self.checklist,
         }
     }
 
-    pub fn allowlist(self, allowlist: CheckList) -> Self {
+    pub fn checklist(self, checklist: AllowDenyList) -> Self {
         Self {
             config: self.config,
-            allowlist,
-            denylist: self.denylist,
-        }
-    }
-
-    pub fn denylist(self, denylist: CheckList) -> Self {
-        Self {
-            config: self.config,
-            allowlist: self.allowlist,
-            denylist,
+            checklist,
         }
     }
 
@@ -124,8 +101,7 @@ impl Server {
     pub fn from_config(config: Config) -> ServerConfigBuilder {
         ServerConfigBuilder {
             config,
-            allowlist: Default::default(),
-            denylist: Default::default(),
+            checklist: Default::default(),
         }
     }
 }
@@ -134,8 +110,7 @@ pub struct Runner<E: ResolveEvent> {
     config: Config,
     default_dns_server: Arc<RwLock<Ipv4Addr>>,
     event: E,
-    pub allowlist: Arc<RwLock<CheckList>>,
-    pub denylist: Arc<RwLock<CheckList>>,
+    pub checklist: Arc<RwLock<AllowDenyList>>,
 }
 
 impl<E: ResolveEvent> Runner<E> {
@@ -159,22 +134,25 @@ impl<E: ResolveEvent> Runner<E> {
             let qtype = question.qtype;
             let name = question.name.clone();
             if question.qtype == dns::QueryType::A || question.qtype == dns::QueryType::AAAA {
-                if !self.check_denylist(&question.name) {
-                    let status = if self.check_allowlist(&question.name) {
-                        self.lookup(req.header.id, question, &mut raw_buf)?
-                    } else {
+                match self.check(&question.name) {
+                    CheckStatus::Deny => {
+                        // Ignore FQDNs that are registered in the deny list
+                        let (_, resp_buffer) =
+                            Self::make_error_resp_msg(&req, dns::ResultCode::NXDomain)?;
+                        raw_buf.extend(resp_buffer.get_all()?);
+                    }
+                    CheckStatus::Allow => {
+                        let status = self.lookup(req.header.id, question, &mut raw_buf)?;
+                        self.event.resolved(status);
+                    }
+                    CheckStatus::NotFound => {
                         let (resp, resp_buffer) =
                             Self::make_error_resp_msg(&req, dns::ResultCode::NXDomain)?;
                         raw_buf.extend(resp_buffer.get_all()?);
                         let res_data = crate::resolved_data::ResolvedData::new(qtype, name);
-                        ResolvedStatus::Deny(res_data, resp.header.rescode)
-                    };
-                    self.event.resolved(status);
-                } else {
-                    // Ignore FQDNs that are registered in the deny list
-                    let (_, resp_buffer) =
-                        Self::make_error_resp_msg(&req, dns::ResultCode::NXDomain)?;
-                    raw_buf.extend(resp_buffer.get_all()?);
+                        self.event
+                            .resolved(ResolvedStatus::Deny(res_data, resp.header.rescode));
+                    }
                 }
             } else {
                 let status = self.lookup(req.header.id, question, &mut raw_buf)?;
@@ -192,22 +170,13 @@ impl<E: ResolveEvent> Runner<E> {
         Ok(())
     }
 
-    fn check_allowlist(&self, name: &str) -> bool {
-        if let Ok(allowlist) = self.allowlist.read() {
-            allowlist.check(name)
+    fn check(&self, name: &str) -> CheckStatus {
+        if let Ok(checklist) = self.checklist.read() {
+            checklist.check(name)
         } else {
             self.event
                 .error("Failed to get allow list(read lock error)");
-            false
-        }
-    }
-
-    fn check_denylist(&self, name: &str) -> bool {
-        if let Ok(denylist) = self.denylist.read() {
-            denylist.check(name)
-        } else {
-            self.event.error("Failed to get deny list(read lock error)");
-            false
+            CheckStatus::Deny
         }
     }
 
