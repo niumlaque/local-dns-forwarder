@@ -373,9 +373,6 @@ async fn exec(
     tracing::info!("[Config] Server: {}", config.server);
 
     let checklist = get_checklist(&config)?;
-    tracing::info!("[Config] Allowing {} FQDN(s)", checklist.allowlist.count());
-    tracing::info!("[Config] Denying {} FQDN(s)", checklist.denylist.count());
-
     let addr = "127.0.0.1:60001"
         .parse()
         .expect("Failed to parse endpoint for ipctl Server");
