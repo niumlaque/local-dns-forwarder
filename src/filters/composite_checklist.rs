@@ -1,6 +1,4 @@
-mod checklist;
-
-pub use checklist::CheckList;
+use super::CheckList;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum CheckStatus {
@@ -10,12 +8,12 @@ pub enum CheckStatus {
 }
 
 #[derive(Default)]
-pub struct AllowDenyList {
+pub struct CompositeCheckList {
     pub allowlist: CheckList,
     pub denylist: CheckList,
 }
 
-impl AllowDenyList {
+impl CompositeCheckList {
     pub fn new(allowlist: CheckList, denylist: CheckList) -> Self {
         Self {
             allowlist,
@@ -50,7 +48,7 @@ mod tests {
         let mut denylist = CheckList::in_memory();
         denylist.add("example.org");
 
-        let list = AllowDenyList::new(allowlist, denylist);
+        let list = CompositeCheckList::new(allowlist, denylist);
         assert_eq!(CheckStatus::Deny, list.check("example.org"));
         assert_eq!(CheckStatus::Allow, list.check("example.com"));
         assert_eq!(CheckStatus::NotFound, list.check("example.net"));

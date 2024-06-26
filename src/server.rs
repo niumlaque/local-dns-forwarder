@@ -1,5 +1,5 @@
-use crate::allow_deny_list::{AllowDenyList, CheckStatus};
 use crate::dns;
+use crate::filters::{CheckStatus, CompositeCheckList};
 use crate::resolve_event::{DefaultResolveEvent, ResolveEvent};
 use crate::resolved_status::ResolvedStatus;
 use serde::Deserialize;
@@ -46,7 +46,7 @@ impl Display for Config {
 
 pub struct ServerBuilder<E: ResolveEvent> {
     config: Config,
-    checklist: AllowDenyList,
+    checklist: CompositeCheckList,
     event: E,
 }
 
@@ -61,7 +61,7 @@ impl<E: ResolveEvent> ServerBuilder<E> {
         }
     }
 
-    pub fn checklist(self, checklist: AllowDenyList) -> Self {
+    pub fn checklist(self, checklist: CompositeCheckList) -> Self {
         Self {
             config: self.config,
             checklist,
@@ -72,7 +72,7 @@ impl<E: ResolveEvent> ServerBuilder<E> {
 
 pub struct ServerConfigBuilder {
     config: Config,
-    checklist: AllowDenyList,
+    checklist: CompositeCheckList,
 }
 
 impl ServerConfigBuilder {
@@ -84,7 +84,7 @@ impl ServerConfigBuilder {
         }
     }
 
-    pub fn checklist(self, checklist: AllowDenyList) -> Self {
+    pub fn checklist(self, checklist: CompositeCheckList) -> Self {
         Self {
             config: self.config,
             checklist,
@@ -110,7 +110,7 @@ pub struct Runner<E: ResolveEvent> {
     config: Config,
     default_dns_server: Arc<RwLock<Ipv4Addr>>,
     event: E,
-    pub checklist: Arc<RwLock<AllowDenyList>>,
+    pub checklist: Arc<RwLock<CompositeCheckList>>,
 }
 
 impl<E: ResolveEvent> Runner<E> {

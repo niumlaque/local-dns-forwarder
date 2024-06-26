@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::Parser;
 use local_fqdn_filter::logger::{self, LogContext};
-use local_fqdn_filter::{AllowDenyList, CheckList, Server};
+use local_fqdn_filter::{CheckList, CompositeCheckList, Server};
 use local_fqdn_filter::{ResolveEvent, ResolvedData, ResolvedStatus};
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
@@ -193,7 +193,7 @@ fn get_config_path(cli: &Cli) -> Result<PathBuf> {
     }
 }
 
-fn get_checklist(config: &InnerConfig) -> Result<AllowDenyList> {
+fn get_checklist(config: &InnerConfig) -> Result<CompositeCheckList> {
     if let Some(allowlist_path) = config.allowlist.as_ref() {
         tracing::info!("[Config] AllowList: {}", allowlist_path.display());
     } else {
@@ -218,7 +218,7 @@ fn get_checklist(config: &InnerConfig) -> Result<AllowDenyList> {
     tracing::info!("[Config] Allowing {} FQDN(s)", allowlist.count());
     tracing::info!("[Config] Denying {} FQDN(s)", denylist.count());
 
-    Ok(AllowDenyList::new(allowlist, denylist))
+    Ok(CompositeCheckList::new(allowlist, denylist))
 }
 
 fn absolute_path(path: impl AsRef<Path>) -> Result<PathBuf> {
@@ -235,7 +235,7 @@ fn absolute_path(path: impl AsRef<Path>) -> Result<PathBuf> {
 fn on_ipctl(
     command: &str,
     reload_handle: &logger::ReloadHandle,
-    checklist: Arc<RwLock<AllowDenyList>>,
+    checklist: Arc<RwLock<CompositeCheckList>>,
 ) -> String {
     use std::str::FromStr;
     let inv = || {
