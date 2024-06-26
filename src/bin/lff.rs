@@ -410,13 +410,7 @@ async fn main() {
     let cli = Cli::parse();
     let config_path = get_config_path(&cli).unwrap_or_else(exit);
     println!("[Config] Config path: {}", config_path.display());
-    let config = if config_path.exists() {
-        Config::load(config_path).unwrap_or_else(exit)
-    } else {
-        println!("[Config] Config file not found");
-        println!("[Config] Load default config");
-        Config::default()
-    };
+    let config = Config::load(config_path).unwrap_or_else(exit);
     let config = InnerConfig::new(config).unwrap_or_else(exit);
     let log = logger::init(config.loglevel, config.log_dir.as_ref());
     println!("[Config] Log Level: {}", config.loglevel);
