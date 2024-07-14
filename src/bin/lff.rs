@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::Parser;
 use local_fqdn_filter::logger::{self, LogContext};
-use local_fqdn_filter::{CheckList, CompositeCheckList, Server};
+use local_fqdn_filter::{get_build_mode, get_version, CheckList, CompositeCheckList, Server};
 use local_fqdn_filter::{ResolveEvent, ResolvedData, ResolvedStatus};
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
@@ -404,6 +404,8 @@ fn exit<R>(e: anyhow::Error) -> R {
 
 #[tokio::main]
 async fn main() {
+    let version = format!("llf ({}) - {}", get_build_mode(), get_version());
+    println!("{version}");
     let cli = Cli::parse();
     let config_path = get_config_path(&cli).unwrap_or_else(exit);
     println!("[Config] Config path: {}", config_path.display());
@@ -418,6 +420,7 @@ async fn main() {
             file_guard: _file_guard,
         } = log;
 
+        tracing::info!("{version}");
         match exec(config, reload_handle).await {
             Ok(_) => 0,
             Err(e) => {
