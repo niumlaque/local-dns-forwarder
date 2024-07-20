@@ -413,11 +413,20 @@ async fn main() {
     let config = InnerConfig::new(config).unwrap_or_else(exit);
     let log = logger::init(config.loglevel, config.log_dir.as_ref());
     println!("[Config] Log Level: {}", config.loglevel);
+    tracing::trace!("Log Level: Trace");
+    tracing::debug!("Log Level: Debug");
+    tracing::info!("Log Level: Info");
+    tracing::warn!("Log Level: Warning");
+    tracing::error!("Log Level: Error");
+    if let Err(e) = log.remove_old_logs() {
+        tracing::error!("{e}");
+    }
 
     let code = {
         let LogContext {
             reload_handle,
             file_guard: _file_guard,
+            ..
         } = log;
 
         tracing::info!("{version}");

@@ -11,4 +11,6 @@ pub enum Error {
     Io(#[from] io::Error),
     #[error("In-memory mode")]
     SaveButInMemory,
+    #[error("Could not delete log files")]
+    DeleteLogFiles,
 }
