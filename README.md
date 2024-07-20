@@ -11,8 +11,8 @@ To install this application, ensure you have Rust installed.
 
 Clone this repository, navigate to the project directory, and build the project using the Makefile:
 ```sh
-$ glt clone https://github.com/niumlaque/local-fqdn-filter.git
-$ cd local-fqdn-filter.git
+$ git clone https://github.com/niumlaque/local-fqdn-filter.git
+$ cd local-fqdn-filter
 $ make
 $ sudo make install
 $ sudo make install-config
@@ -58,6 +58,8 @@ Run the application:
 # $ make
 # $ sudo make install
 # $ sudo make install-config
+# $ sudo cp /etc/resolv.conf /etc/resolv.conf.backup
+# $ echo "nameserver 127.0.0.1" | sudo tee /etc/resolv.conf
 $ sudo lff
 ```
 The server will start and begin listening for DNS queries. It will only process requests for domains listed in allowlist.txt and forward them to the specified upstream DNS server. All other requests will be ignored.
