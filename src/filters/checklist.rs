@@ -181,9 +181,9 @@ impl<'a> Iterator for InMemoryAllowListIterator<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(key) = self.names_keys.next() {
-            return Some(key.as_str());
+            Some(key.as_str())
         } else if let Some(key) = self.wnames_keys.next() {
-            return Some(key.as_str());
+            Some(key.as_str())
         } else {
             None
         }

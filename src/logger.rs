@@ -34,7 +34,7 @@ impl LogContext {
         if let Some(log_dir) = self.log_dir.as_ref() {
             let threshold = chrono::Local::now()
                 .checked_sub_months(chrono::Months::new(1))
-                .ok_or_else(|| Error::DeleteLogFiles)?;
+                .ok_or(Error::DeleteLogFiles)?;
             let threshold = threshold.date_naive();
             tracing::info!(
                 "Deleting old log files from {} (threshold={})",
