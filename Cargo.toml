@@ -1,5 +1,5 @@
 [package]
-name = "local-fqdn-filter"
+name = "local-dns-forwarder"
 version = "0.1.0"
 edition = "2021"
 
@@ -18,5 +18,5 @@ wildmatch = "2.4.0"
 chrono = "0.4.39"
 
 [[bin]]
-name = "lff"
-path = "src/bin/lff.rs"
+name = "ldf"
+path = "src/bin/ldf.rs"

@@ -7,7 +7,7 @@ use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::{filter, fmt, reload};
 use tracing_subscriber::{prelude::*, Registry};
 
-const LOGFILE_PREFIX: &str = "local-fqdn-filter.log";
+const LOGFILE_PREFIX: &str = "local-dns-forwarder.log";
 
 pub type ReloadHandle = reload::Handle<LevelFilter, Registry>;
 

@@ -1,6 +1,6 @@
 INSTALL_DIR = /usr/local/bin
-BINARY = lff
-CONFIG_DIR = /etc/lff
+BINARY = ldf
+CONFIG_DIR = /etc/ldf
 SYSD_DIR = /etc/systemd/system
 
 all: build
@@ -17,7 +17,7 @@ install-config:
 	install -m 0644 misc/config.toml.template  $(CONFIG_DIR)/config.toml
 
 install-sysd:
-	install -m 0644 misc/systemd/lff.service $(SYSD_DIR)/lff.service
+	install -m 0644 misc/systemd/ldf.service $(SYSD_DIR)/ldf.service
 
 clean:
 	cargo clean

@@ -1,10 +1,10 @@
 [Unit]
-Description=Local FQDN Filter
+Description=Local DNS Forwarder
 After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/lff
+ExecStart=/usr/local/bin/ldf
 Restart=always
 
 [Install]

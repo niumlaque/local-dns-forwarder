@@ -1,8 +1,8 @@
 use anyhow::Result;
 use clap::Parser;
-use local_fqdn_filter::logger::{self, LogContext};
-use local_fqdn_filter::{get_build_mode, get_version, CheckList, CompositeCheckList, Server};
-use local_fqdn_filter::{ResolveEvent, ResolvedData, ResolvedStatus};
+use local_dns_forwarder::logger::{self, LogContext};
+use local_dns_forwarder::{get_build_mode, get_version, CheckList, CompositeCheckList, Server};
+use local_dns_forwarder::{ResolveEvent, ResolvedData, ResolvedStatus};
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
@@ -40,7 +40,7 @@ impl Default for GeneralConfig {
 #[derive(Debug, Deserialize)]
 struct Config {
     general: Option<GeneralConfig>,
-    server: local_fqdn_filter::Config,
+    server: local_dns_forwarder::Config,
 }
 
 impl Config {
@@ -59,7 +59,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             general: Some(GeneralConfig::default()),
-            server: local_fqdn_filter::Config::default(),
+            server: local_dns_forwarder::Config::default(),
         }
     }
 }
@@ -71,7 +71,7 @@ struct InnerConfig {
     output_nochecked_log: bool,
     allowlist: Option<PathBuf>,
     denylist: Option<PathBuf>,
-    server: local_fqdn_filter::Config,
+    server: local_dns_forwarder::Config,
 }
 
 impl InnerConfig {
@@ -110,14 +110,14 @@ impl InnerConfig {
     }
 }
 
-pub struct LFFResolveEvent {
+pub struct LDFResolveEvent {
     threshold: usize,
     count_map: Arc<RwLock<std::collections::HashMap<u64, usize>>>,
     output_allowed_log: bool,
     output_nochecked_log: bool,
 }
 
-impl LFFResolveEvent {
+impl LDFResolveEvent {
     fn new(threshold: usize, output_allowed_log: bool, output_nochecked_log: bool) -> Self {
         Self {
             threshold,
@@ -137,7 +137,7 @@ impl LFFResolveEvent {
     }
 }
 
-impl ResolveEvent for LFFResolveEvent {
+impl ResolveEvent for LDFResolveEvent {
     fn resolving(&self, _name: &str) {}
 
     fn resolved(&self, status: ResolvedStatus) {
@@ -189,7 +189,7 @@ fn get_config_path(cli: &Cli) -> Result<PathBuf> {
     if let Some(config_path) = cli.config.as_ref() {
         absolute_path(config_path)
     } else {
-        Ok(Path::new("/etc/lff/config.toml").to_path_buf())
+        Ok(Path::new("/etc/ldf/config.toml").to_path_buf())
     }
 }
 
@@ -363,7 +363,7 @@ fn on_ipctl(
 
 async fn exec(
     config: InnerConfig,
-    reload_handle: local_fqdn_filter::logger::ReloadHandle,
+    reload_handle: local_dns_forwarder::logger::ReloadHandle,
 ) -> Result<()> {
     tracing::info!("[Config] Output Allowed Log: {}", config.output_allowed_log);
     tracing::info!(
@@ -379,7 +379,7 @@ async fn exec(
 
     let server = Server::from_config(config.server)
         .checklist(checklist)
-        .event(LFFResolveEvent::new(
+        .event(LDFResolveEvent::new(
             3,
             config.output_allowed_log,
             config.output_nochecked_log,
@@ -390,7 +390,7 @@ async fn exec(
     let handler =
         ipctl::Server::new(move |x: &str| on_ipctl(x, &reload_handle, Arc::clone(&checklist)))
             .spawn_and_serve(addr);
-    tracing::info!("Start Local FQDN Filter");
+    tracing::info!("Start Local DNS Forwarder");
     server.serve()?;
 
     handler.join().await?;
@@ -404,7 +404,7 @@ fn exit<R>(e: anyhow::Error) -> R {
 
 #[tokio::main]
 async fn main() {
-    let version = format!("llf ({}) - {}", get_build_mode(), get_version());
+    let version = format!("ldf ({}) - {}", get_build_mode(), get_version());
     println!("{version}");
     let cli = Cli::parse();
     let config_path = get_config_path(&cli).unwrap_or_else(exit);

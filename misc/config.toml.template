@@ -1,7 +1,7 @@
 [general]
-# allowlist = "/etc/lff/allowlist.txt"
-# denylist = "/etc/lff/denylist.txt"
-# log_dir = "/var/log/lff"
+# allowlist = "/etc/ldf/allowlist.txt"
+# denylist = "/etc/ldf/denylist.txt"
+# log_dir = "/var/log/ldf"
 # output_allowed_log = false
 # output_nochecked_log = false
 # loglevel = "info"

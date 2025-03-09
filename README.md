@@ -1,4 +1,4 @@
-# Local FQDN Filter
+# Local DNS Forwarder
 This application is created as a project to help me learn the Rust programming language.
 The server filters requests based on a predefined allowlist of Fully Qualified Domain Names (FQDNs).
 
@@ -11,15 +11,15 @@ To install this application, ensure you have Rust installed.
 
 Clone this repository, navigate to the project directory, and build the project using the Makefile:
 ```sh
-$ git clone https://github.com/niumlaque/local-fqdn-filter.git
-$ cd local-fqdn-filter
+$ git clone https://github.com/niumlaque/local-dns-forwarder.git
+$ cd local-dns-forwarder
 $ make
 $ sudo make install
 $ sudo make install-config
 ```
 
 ## Configuration
-The application reads configuration settings from a `/etc/lff/config.toml` file, which can be placed in the same directory as the executable or specified at runtime using the `-f` flag like so: `lff -f /path/to/config.toml`.
+The application reads configuration settings from a `/etc/ldf/config.toml` file, which can be placed in the same directory as the executable or specified at runtime using the `-f` flag like so: `ldf -f /path/to/config.toml`.
 
 The `config.toml` file should have the following structure:
 ```toml
@@ -60,6 +60,6 @@ Run the application:
 # $ sudo make install-config
 # $ sudo cp /etc/resolv.conf /etc/resolv.conf.backup
 # $ echo "nameserver 127.0.0.1" | sudo tee /etc/resolv.conf
-$ sudo lff
+$ sudo ldf
 ```
 The server will start and begin listening for DNS queries. It will only process requests for domains listed in allowlist.txt and forward them to the specified upstream DNS server. All other requests will be ignored.
